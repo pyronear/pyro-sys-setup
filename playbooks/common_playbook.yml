@@ -1,0 +1,43 @@
+---
+- name: raspberry config
+  hosts: raspberry
+
+  pre_tasks:
+    - name: install python3
+      raw: test -r /usr/bin/python3 || (apt-get update && apt-get install -y python3)
+      tags: always
+
+    - name: install pip3 and python3-venv
+      apt:
+        name:
+          - python3-pip
+          - python3-venv
+        state: latest
+        update_cache: true
+      become: true
+      tags: always
+
+    - name: full upgrade of all packages
+      apt:
+        upgrade: full
+      register: apt_output
+      become: true
+      tags: dangerous
+
+    - name: reboot of RPI
+      reboot:
+      when: apt_output.changed
+      become: true
+      tags: dangerous
+
+  roles:
+    - role: geerlingguy.docker_arm
+      become: true
+      tags: docker
+
+  tasks:
+    - name: create folder to store images
+      file:
+        path: /home/pi/images
+        state: directory
+      tags: example
