@@ -14,12 +14,12 @@
 - name: fetch rpi public key to copy it on local host
   ansible.builtin.fetch:
     src: ~/.ssh/id_rsa.pub
-    dest: ./ssh_rpi_keys/id_rsa_{{ inventory_hostname }}.pub
+    dest: ./files/ssh_rpi_keys/id_rsa_{{ inventory_hostname }}.pub
     flat: true
 
 - name: list file in directory
   ansible.builtin.find:
-    paths: ./ssh_rpi_keys
+    paths: ./files/ssh_rpi_keys
   register: files_list
   delegate_to: 127.0.0.1
 
