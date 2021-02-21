@@ -6,11 +6,11 @@
     regexp: "{{ item.regexp }}"
     line: "{{ item.line }}"
   with_items:
-    - { regexp: '^#?gpu_mem', line: 'gpu_mem=512' }
-    - { regexp: '^#?disable_camera_led', line: 'disable_camera_led=1' }
-    - { regexp: '^#?start_file', line: 'start_file=start4x.elf' }
-    - { regexp: '^#?fixup_file', line: 'fixup_file=fixup4x.dat' }
-    - { regexp: '^#?start_x', line: 'start_x=1' }
+    - {regexp: '^#?gpu_mem', line: 'gpu_mem=512'}
+    - {regexp: '^#?disable_camera_led', line: 'disable_camera_led=1'}
+    - {regexp: '^#?start_file', line: 'start_file=start4x.elf'}
+    - {regexp: '^#?fixup_file', line: 'fixup_file=fixup4x.dat'}
+    - {regexp: '^#?start_x', line: 'start_x=1'}
   become: true
   register: camera_output
   tags: test

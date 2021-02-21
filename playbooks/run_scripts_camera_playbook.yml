@@ -1,3 +1,4 @@
+---
 - name: raspberry config
   hosts: raspberry_with_camera
 
