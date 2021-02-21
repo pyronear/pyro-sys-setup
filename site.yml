@@ -1,5 +1,0 @@
----
-# This is the master playbook
-# Here, we may import specific playbooks
-
-# we might have in the future, other playbook along site.yml for different purposes

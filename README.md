@@ -58,7 +58,7 @@ Following ansisble [guidelines](https://docs.ansible.com/ansible/latest/user_gui
 ├── scripts                     
 │   └── some_script.py
 ├── ansible.cfg                 # user config file, overrides the default config if present
-└── site.yml                    # main playbook
+└── master.yml                    # main playbook
 ```
 
 ## Example to playbooks to run:
@@ -87,7 +87,7 @@ ansible-playbook enable_camera_playbook.yml
 
 To run the core playbook:
 ```bash
-ansible-playbook core_playbook.yml
+ansible-playbook common_playbook.yml
 ```
 **CAREFUL** `tags=always` are always run ! 
 
