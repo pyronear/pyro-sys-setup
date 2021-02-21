@@ -1,0 +1,7 @@
+---
+- name: raspberry config
+  hosts: raspberry
+
+  roles:
+    - role: ssh_role
+      tags: always

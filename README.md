@@ -60,6 +60,37 @@ Following ansisble [guidelines](https://docs.ansible.com/ansible/latest/user_gui
 ├── ansible.cfg                 # user config file, overrides the default config if present
 └── site.yml                    # main playbook
 ```
+
+## Example to playbooks to run:
+
+#### First:
+- need sshpass on lacal machine:
+````bash
+brew install hudochenkov/sshpass/sshpass
+````
+
+On first try:
+````bash
+ansible-playbook add_ssh_key_playbook.yml -i host_vars/hosts_with_password.yml
+````
+with role to set up ssh connexion with keys
+
+Then, to deactivate password authentification:
+````bash
+ansible-playbook deactivate_password_playbook.yml
+````
+
+To run the core playbook:
+```bash
+ansible-playbook core_playbook.yml
+```
+**CAREFUL** `tags=always` are always run ! 
+
+To stop a service:
+```bash
+ansible-playbook stop_service_playbook.yml --extra-vars service=docker
+```
+
 ## Contributing
 Please refer to `CONTRIBUTING` if you wish to contribute to this project.
 
