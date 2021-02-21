@@ -64,10 +64,12 @@ Following ansisble [guidelines](https://docs.ansible.com/ansible/latest/user_gui
 ## Example to playbooks to run:
 
 #### First:
-- need sshpass on lacal machine:
+You need sshpass on your local machine:
 ````bash
 brew install hudochenkov/sshpass/sshpass
 ````
+
+You also need to modify `host_vars/hosts.yml` to put your own rpi `ansible_host`, `ansible_user`, `ansible_password` and `ansible_python_interpreter`.
 
 On first try:
 ````bash
