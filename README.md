@@ -80,6 +80,11 @@ Then, to deactivate password authentification:
 ansible-playbook deactivate_password_playbook.yml
 ````
 
+To run enable camera usage on RPI:
+```bash
+ansible-playbook enable_camera_playbook.yml
+```
+
 To run the core playbook:
 ```bash
 ansible-playbook core_playbook.yml
