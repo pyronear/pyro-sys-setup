@@ -47,14 +47,17 @@ Following ansisble [guidelines](https://docs.ansible.com/ansible/latest/user_gui
 ├── group_vars		            # directory to assign variables to particular groups
 │   └── group_example.yml       
 ├── host_vars                   # directory to assign variables to particular systems
-│   └── hosts_with_camera.yml
-├── hosts.yml                   # inventory file 
+│   └── hosts.yml         # inventory file 
+├── files                       # directory to gather files and folders needed for system roles/tasks
 ├── requirements.txt
+├── rpi.requirements.txt        # requirements which need to be install on the RPI (only)
+├── requirements.yml
 ├── roles                       # directory to gather roles
 │   └── common
 │       └── main_exemple.yml
 ├── scripts                     
 │   └── some_script.py
+├── ansible.cfg                 # user config file, overrides the default config if present
 └── site.yml                    # main playbook
 ```
 ## Contributing
