@@ -47,7 +47,7 @@ Following ansisble [guidelines](https://docs.ansible.com/ansible/latest/user_gui
 ├── group_vars		            # directory to assign variables to particular groups
 │   └── group_example.yml       
 ├── host_vars                   # directory to assign variables to particular systems
-│   └── host_example.yml
+│   └── hosts_with_camera.yml
 ├── hosts.yml                   # inventory file 
 ├── requirements.txt
 ├── roles                       # directory to gather roles
