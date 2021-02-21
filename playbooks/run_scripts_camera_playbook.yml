@@ -1,0 +1,37 @@
+- name: raspberry config
+  hosts: raspberry_with_camera
+
+  tasks:
+    - name: create folder to store example scripts
+      file:
+        path: /home/pi/example_scripts
+        state: directory
+      tags: example
+
+    - name: copy rpi.requirements.txt
+      ansible.builtin.copy:
+        src: ./rpi.requirements.txt
+        dest: /home/pi/example_scripts/rpi.requirements.txt
+      tags: example
+
+    - name: copy CONFIG_IP.py
+      ansible.builtin.copy:
+        src: ./.env
+        dest: /home/pi/example_scripts/.env
+      tags: example
+
+    - name: install rpi.requirements.txt & create venv
+      pip:
+        requirements: /home/pi/example_scripts/rpi.requirements.txt
+        virtualenv: /home/pi/example_scripts/venv
+        virtualenv_command: python3 -m venv
+      tags: example
+
+    - name: run script take_picture.py
+      ansible.builtin.script:
+        cmd: ./take_picture.py
+        executable: /home/pi/example_scripts/venv/bin/python3
+        chdir: /home/pi/example_scripts/
+      environment:
+        - PYTHONPATH: /home/pi/example_scripts/
+      tags: example
