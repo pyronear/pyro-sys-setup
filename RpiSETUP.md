@@ -21,6 +21,7 @@ touch /Volumes/boot/ssh
 First, you need to create the following file:
 ```bash
 touch /Volumes/boot/wpa_supplicant.conf
+vim /Volumes/boot/wpa_supplicant.conf
 ```
 Then add your network information:
 ```
