@@ -11,13 +11,13 @@
 
     - name: copy rpi.requirements.txt
       ansible.builtin.copy:
-        src: ./rpi.requirements.txt
+        src: ../rpi.requirements.txt
         dest: /home/pi/example_scripts/rpi.requirements.txt
       tags: example
 
     - name: copy CONFIG_IP.py
       ansible.builtin.copy:
-        src: ./.env
+        src: ../.env
         dest: /home/pi/example_scripts/.env
       tags: example
 
@@ -30,7 +30,7 @@
 
     - name: run script take_picture.py
       ansible.builtin.script:
-        cmd: ./take_picture.py
+        cmd: ../scripts/take_picture.py
         executable: /home/pi/example_scripts/venv/bin/python3
         chdir: /home/pi/example_scripts/
       environment:
