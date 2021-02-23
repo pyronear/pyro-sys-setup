@@ -3,5 +3,5 @@
   hosts: raspberry_with_camera
 
   roles:
-    - role: rpi_camera_config
+    - role: ../roles/rpi_camera_config
       tags: always

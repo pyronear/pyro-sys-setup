@@ -3,5 +3,5 @@
   hosts: raspberry
 
   roles:
-    - role: ssh_role
+    - role: ../roles/ssh_role
       tags: always
