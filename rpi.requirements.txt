@@ -1,1 +1,2 @@
 picamera>=1.13
+python-dotenv>=0.15.0
