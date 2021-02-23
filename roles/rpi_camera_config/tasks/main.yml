@@ -13,10 +13,10 @@
     - {regexp: '^#?start_x', line: 'start_x=1'}
   become: true
   register: camera_output
-  tags: test
+  tags: always
 
 - name: reboot of RPI after camera enabling
   reboot:
   when: camera_output.changed
   become: true
-  tags: test
+  tags: always
