@@ -1,5 +1,5 @@
 ---
-- name: raspberry config
+- name: ssh config
   hosts: raspberry
 
   roles:

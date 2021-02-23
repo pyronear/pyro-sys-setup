@@ -1,5 +1,5 @@
 ---
-- name: raspberry config
+- name: raspberry commun config
   hosts: raspberry
 
   pre_tasks:

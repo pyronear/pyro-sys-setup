@@ -1,5 +1,5 @@
 ---
-- name: raspberry config
+- name: raspberry with camera config
   hosts: raspberry_with_camera
 
   tasks:
