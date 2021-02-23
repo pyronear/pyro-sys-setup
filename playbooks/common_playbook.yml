@@ -15,20 +15,21 @@
         state: latest
         update_cache: true
       become: true
+      register: apt_output
       tags: always
 
-#    - name: full upgrade of all packages
-#      apt:
-#        upgrade: full
-#      register: apt_output
-#      become: true
-#      tags: dangerous
-#
-#    - name: reboot of RPI
-#      reboot:
-#      when: apt_output.changed
-#      become: true
-#      tags: dangerous
+    - name: full upgrade of all packages
+      apt:
+        upgrade: full
+      become: true
+      when: apt_output.changed
+      tags: dangerous
+
+    - name: reboot of RPI
+      reboot:
+      when: apt_output.changed
+      become: true
+      tags: dangerous
 
   roles:
     - role: geerlingguy.docker_arm
