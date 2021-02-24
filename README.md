@@ -111,6 +111,11 @@ To stop a service:
 ```bash
 ansible-playbook playbooks/stop_service_playbook.yml --extra-vars service=docker
 ```
+## Environment variables
+
+In the `.env.dist` file, you'll find a template of the `.env` which you need to add to your clone version of this repository. 
+It contains the `MAIN_RPI_USER` which is the user used to connect to the main RPI and its ip address `MAIN_RPI_IP`. This is currently 
+used to send image files over `rsync` from the RPI with camera to the main one for storage.
 
 ## Contributing
 Please refer to `CONTRIBUTING` if you wish to contribute to this project.
