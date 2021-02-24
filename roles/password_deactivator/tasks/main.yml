@@ -1,0 +1,28 @@
+---
+# tasks file for password_deactivator
+- name: deactivate ssh connexion by password
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication"
+    line: PasswordAuthentication no
+  become: true
+
+- name: deactivate ChallengeResponseAuthentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?ChallengeResponseAuthentication"
+    line: ChallengeResponseAuthentication no
+  become: true
+
+- name: deactivate use of PAM
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?UsePAM"
+    line: UsePAM no
+  become: true
+
+- name: stop and restart ssh to make changes effective
+  service:
+    name: ssh
+    state: restarted
+  become: true
