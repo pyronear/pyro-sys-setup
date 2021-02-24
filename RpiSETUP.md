@@ -6,11 +6,11 @@ The following steps need to be done **BEFORE** using Ansible and this repository
 
 You can choose the OS which best fits your needs in this [list](https://www.raspberrypi.org/software/operating-systems/). I chose `Raspberry Pi OS Lite`.
 
-Then you can flash your SD Card with the chosen OS.
+Then you can flash your SD Card with the chosen OS. See [this article from raspberrypi.org](https://www.raspberrypi.org/documentation/installation/installing-images/) to help you out writing the image.
 
 ## Enable SSH
 
-SSH needs to be enabled so that you can log onto your RPI. To do so, you can run the following command:
+SSH needs to be enabled so that you can log onto your RPI. To do so, an empty ssh file must be created, on linux or mac os, you can run the following command:
 
 ```bash
 touch /Volumes/boot/ssh

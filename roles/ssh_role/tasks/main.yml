@@ -1,5 +1,10 @@
 ---
 # tasks file for ssh_role
+- name: create .ssh directory
+  ansible.builtin.file:
+    path: ~/.ssh/
+    state: directory
+
 - name: Set authorized key on rpi taken from local file
   ansible.posix.authorized_key:
     user: "{{ ansible_user }}"
@@ -29,14 +34,14 @@
   register: files_list
   delegate_to: 127.0.0.1
 
-- name: set authorized_keys on rpi
+- name: set authorized_keys on all rpi
   ansible.posix.authorized_key:
     user: "{{ ansible_user }}"
     state: present
     key: "{{ lookup('file', item.path ) }}"
   with_items: "{{ files_list.files }}"
 
-- name: add rpi public key in known_hosts for all rpis
+- name: set known_hosts on all rpi
   ansible.builtin.known_hosts:
     name: "{{ item.value.ansible_host }}"
     state: present

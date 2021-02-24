@@ -32,12 +32,13 @@ You can clone and install the project dependencies as follows:
 ```bash
 git clone https://github.com/pyronear/pyro-sys-setup.git
 pip install -r pyro-sys-setup/requirements.txt
+ansible-galaxy install requirements.yml
 ```
 
 ## Usage
 By convention, we will use YAML format for inventory files.
 
-Following ansisble [guidelines](https://docs.ansible.com/ansible/latest/user_guide/sample_setup.html), you can find below the structure of the project
+Following Ansible [guidelines](https://docs.ansible.com/ansible/latest/user_guide/sample_setup.html), you can find below the structure of the project
 
 ## Directory layout
 
