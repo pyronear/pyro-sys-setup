@@ -1,0 +1,11 @@
+---
+- name: stop service
+  hosts: raspberry
+
+  tasks:
+    - name: stop service
+      ansible.builtin.service:
+        name: "{{ service }}"
+        state: stopped
+      become: true
+      tags: stop

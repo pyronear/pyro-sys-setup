@@ -1,0 +1,8 @@
+---
+- import_playbook: playbooks/add_ssh_key_playbook.yml
+- import_playbook: playbooks/deactivate_password_playbook.yml
+- import_playbook: playbooks/enable_camera_playbook.yml
+- import_playbook: playbooks/common_playbook.yml
+- import_playbook: playbooks/stop_service_playbook.yml
+  vars:
+    service: docker
