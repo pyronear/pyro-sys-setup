@@ -1,0 +1,7 @@
+---
+- name: enable camera usage on rpi with camera
+  hosts: raspberry_with_camera
+
+  roles:
+    - role: ../roles/rpi_camera_config
+      tags: always
