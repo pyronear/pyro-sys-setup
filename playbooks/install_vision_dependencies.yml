@@ -3,7 +3,7 @@
   hosts: raspberry
 
   pre_tasks:
-    - name: install some dependecies
+    - name: install dependecies needed for pyro-vision module
       apt:
         name:
           - libopenblas-dev
