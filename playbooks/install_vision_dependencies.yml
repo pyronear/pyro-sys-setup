@@ -1,0 +1,26 @@
+---
+- name: pyro-vision dependecies
+  hosts: testing_raspberry
+
+  pre_tasks:
+    - name: install some dependecies
+      apt:
+        name:
+          - libopenblas-dev
+          - libopenjp2-7
+          - libtiff5
+        state: latest
+        update_cache: yes
+      become: true
+      register: apt_output
+      tags: always
+
+    - name: install pytorch 
+      pip:
+        name: https://github.com/pyronear/pyro-vision/releases/download/v0.1.1/torch-1.7.0a0-cp37-cp37m-linux_armv7l.whl
+      tags: always
+
+    - name: install torchvision
+      pip:
+        name: https://github.com/pyronear/pyro-vision/releases/download/v0.1.1/torchvision-0.8.0-cp37-cp37m-linux_armv7l.whl
+      tags: always
