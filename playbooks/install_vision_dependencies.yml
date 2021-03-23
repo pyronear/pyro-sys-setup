@@ -10,7 +10,7 @@
           - libopenjp2-7
           - libtiff5
         state: latest
-        update_cache: yes
+        update_cache: true
       become: true
       register: apt_output
       tags: always
