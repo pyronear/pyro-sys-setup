@@ -1,6 +1,6 @@
 ---
 - name: pyro-vision dependecies
-  hosts: testing_raspberry
+  hosts: raspberry
 
   pre_tasks:
     - name: install some dependecies
