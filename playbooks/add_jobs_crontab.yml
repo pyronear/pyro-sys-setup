@@ -1,0 +1,17 @@
+---
+- name: put jobs in crontab
+  hosts: raspberry
+
+  tasks:
+    - name: add scripts to crontab to be launched on reboot
+      ansible.builtin.cron:
+        name: "Launch monitor pi script"
+        special_time: reboot
+        job: "/home/pi/python_scripts/venv/bin/python3 /home/pi/python_scripts/monitor_pi.py"
+      register: crontab_output
+
+    - name: reboot of RPI
+      reboot:
+      when: crontab_output.changed
+      become: true
+      tags: dangerous

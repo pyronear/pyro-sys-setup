@@ -38,8 +38,14 @@
         state: directory
       tags: python_script
 
-    - name: create folder to store python scripts
+    - name: create folder to store python scripts_common
       file:
         path: /home/pi/python_scripts
         state: directory
+      tags: python_script
+
+    - name: copy python scripts from scripts_common to be executed later on hosts
+      ansible.builtin.copy:
+        src: ../scripts_common/
+        dest: /home/pi/python_scripts
       tags: python_script

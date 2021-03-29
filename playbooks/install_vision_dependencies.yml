@@ -3,23 +3,32 @@
   hosts: raspberry_masters
 
   tasks:
-  - name: install dependecies needed for pyro-vision module
-    apt:
-      name:
-        - libopenblas-dev
-        - libopenjp2-7
-        - libtiff5
-      state: latest
-      update_cache: true
-    become: true
-    register: apt_output
-    tags: always
+    - name: install dependecies needed for pyro-vision module
+      apt:
+        name:
+          - libopenblas-dev
+          - libopenjp2-7
+          - libtiff5
+          - libatlas-base-dev
+        state: latest
+        update_cache: true
+      become: true
+      tags: always
 
-  - name: install pytorch, torchvision & create venv
-    pip:
-      name:
-        - https://github.com/pyronear/pyro-vision/releases/download/v0.1.1/torch-1.7.0a0-cp37-cp37m-linux_armv7l.whl
-        - https://github.com/pyronear/pyro-vision/releases/download/v0.1.1/torchvision-0.8.0-cp37-cp37m-linux_armv7l.whl
-      virtualenv: /home/pi/python_scripts/venv
-      virtualenv_command: python3 -m venv
-    tags: always
+    - name: install pytorch, torchvision & create venv
+      pip:
+        name:
+          - https://github.com/pyronear/pyro-vision/releases/download/v0.1.2/torch-1.8.0a0+56b43f4-cp37-cp37m-linux_armv7l.whl
+          - https://github.com/pyronear/pyro-vision/releases/download/v0.1.2/torchvision-0.9.1-cp37-cp37m-linux_armv7l.whl
+        virtualenv: /home/pi/python_scripts/venv
+        virtualenv_command: python3 -m venv
+      tags: always
+
+    - name: install pyrovision
+      pip:
+        name:
+          - pyrovision
+          - torchvision==0.9.1
+          - torch==1.8.0a0
+        virtualenv: /home/pi/python_scripts/venv
+      tags: always

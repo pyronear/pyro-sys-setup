@@ -3,26 +3,27 @@
   hosts: raspberry_with_camera
 
   tasks:
-    - name: copy rpi.requirements.txt
+    - name: copy camera.rpi.requirements.txt
       ansible.builtin.copy:
-        src: ../rpi.requirements.txt
-        dest: /home/pi/python_scripts/rpi.requirements.txt
+        src: ../camera.rpi.requirements.txt
+        dest: /home/pi/python_scripts/camera.rpi.requirements.txt
       tags: python_script
 
-    - name: copy .env file & python script to be executed later on hosts
+    - name: copy .env file
       ansible.builtin.copy:
-        src: "{{ item.src }}"
-        dest: "/home/pi/python_scripts/{{ item.dest }}"
+        src: ../.env
+        dest: /home/pi/python_scripts/.env
       tags: python_script
-      with_items:
-        - src: ../.env
-          dest: .env
-        - src: ../scripts/take_picture.py
-          dest: take_picture.py
 
-    - name: install rpi.requirements.txt & create venv
+    - name: copy python scripts from scripts_camera_rpi to be executed later on hosts
+      ansible.builtin.copy:
+        src: ../scripts_camera_rpi/
+        dest: /home/pi/python_scripts
+      tags: python_script
+
+    - name: install camera.rpi.requirements.txt & create venv
       pip:
-        requirements: /home/pi/python_scripts/rpi.requirements.txt
+        requirements: /home/pi/python_scripts/camera.rpi.requirements.txt
         virtualenv: /home/pi/python_scripts/venv
         virtualenv_command: python3 -m venv
       tags: python_script

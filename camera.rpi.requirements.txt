@@ -1,0 +1,5 @@
+picamera==1.13
+python-dotenv==0.15.0
+gpiozero==1.6.2
+psutil==5.8.0
+pandas==1.2.3

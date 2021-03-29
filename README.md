@@ -53,12 +53,17 @@ Following Ansible [guidelines](https://docs.ansible.com/ansible/latest/user_guid
 │   └── hosts.yml         # inventory file 
 ├── files                       # directory to gather files and folders needed for system roles/tasks
 ├── requirements.txt
-├── rpi.requirements.txt        # requirements which need to be install on the RPI (only)
+├── camera.rpi.requirements.txt        # requirements which need to be install on the camera RPI (only)
+├── main.rpi.requirements.txt        # requirements which need to be install on the main RPI (only)
 ├── requirements.yml
 ├── roles                       # directory to gather roles
 │   └── common
 │       └── main_exemple.yml
-├── scripts                     
+├── scripts_common                     
+│   └── some_script.py
+├── scripts_camera_rpi                     
+│   └── some_script.py
+├── scripts_main_rpi                  
 │   └── some_script.py
 ├── ansible.cfg                 # user config file, overrides the default config if present
 └── master.yml                    # main playbook

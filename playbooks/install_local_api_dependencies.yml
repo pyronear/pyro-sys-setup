@@ -6,3 +6,22 @@
     - role: geerlingguy.docker_arm
       become: true
       tags: docker
+
+  tasks:
+    - name: copy main.rpi.requirements.txt
+      ansible.builtin.copy:
+        src: ../main.rpi.requirements.txt
+        dest: /home/pi/python_scripts/main.rpi.requirements.txt
+      tags: python_script
+
+    - name: python scripts from script_main_rpi to be executed later on hosts
+      ansible.builtin.copy:
+        src: ../scripts_main_rpi/
+        dest: /home/pi/python_scripts
+      tags: python_script
+
+    - name: install main.rpi.requirements.txt
+      pip:
+        requirements: /home/pi/python_scripts/main.rpi.requirements.txt
+        virtualenv: /home/pi/python_scripts/venv
+      tags: python_script
