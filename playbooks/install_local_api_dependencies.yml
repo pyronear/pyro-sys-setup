@@ -1,0 +1,8 @@
+---
+- name: local-api dependecies
+  hosts: raspberry_masters
+
+  roles:
+    - role: geerlingguy.docker_arm
+      become: true
+      tags: docker

@@ -24,6 +24,7 @@
       pip:
         requirements: /home/pi/python_scripts/rpi.requirements.txt
         virtualenv: /home/pi/python_scripts/venv
+        virtualenv_command: python3 -m venv
       tags: python_script
 
     - name: run script take_picture.py
