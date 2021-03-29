@@ -31,14 +31,15 @@
       become: true
       tags: dangerous
 
-  roles:
-    - role: geerlingguy.docker_arm
-      become: true
-      tags: docker
-
   tasks:
     - name: create folder to store images
       file:
         path: /home/pi/images
         state: directory
-      tags: example
+      tags: python_script
+
+    - name: create folder to store python scripts
+      file:
+        path: /home/pi/python_scripts
+        state: directory
+      tags: python_script
