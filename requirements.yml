@@ -1,3 +1,4 @@
 ---
-- src: geerlingguy.docker_arm
-  version: 4.1.0
+roles:
+  - name: geerlingguy.docker_arm
+    version: 4.1.0

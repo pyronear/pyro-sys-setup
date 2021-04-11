@@ -32,7 +32,7 @@ You can clone and install the project dependencies as follows:
 ```bash
 git clone https://github.com/pyronear/pyro-sys-setup.git
 pip install -r pyro-sys-setup/requirements.txt
-ansible-galaxy install requirements.yml
+ansible-galaxy install -r requirements.yml
 ```
 
 ## Usage
@@ -47,26 +47,23 @@ Following Ansible [guidelines](https://docs.ansible.com/ansible/latest/user_guid
 ├── CONTRIBUTING.md
 ├── LICENSE
 ├── README.md
+├── RpiSETUP.md                 # guidelines to setup your Raspberry Pi before using this repository
 ├── group_vars		            # directory to assign variables to particular groups
 │   └── group_example.yml       
 ├── host_vars                   # directory to assign variables to particular systems
 │   └── hosts.yml         # inventory file 
 ├── files                       # directory to gather files and folders needed for system roles/tasks
+├──    └──ansible_on_main_rpi         # directory containing all related ansible files needed for master rpi to run playbooks
+├── templates                   # directory to gather files needed for templating
+├── vars                        # directory containing Ansible environment variables (see main.yml.dist for template)
 ├── requirements.txt
-├── camera.rpi.requirements.txt        # requirements which need to be install on the camera RPI (only)
-├── main.rpi.requirements.txt        # requirements which need to be install on the main RPI (only)
 ├── requirements.yml
+├── playbooks                   # directory to gather playbooks
 ├── roles                       # directory to gather roles
 │   └── common
 │       └── main_exemple.yml
-├── scripts_common                     
-│   └── some_script.py
-├── scripts_camera_rpi                     
-│   └── some_script.py
-├── scripts_main_rpi                  
-│   └── some_script.py
 ├── ansible.cfg                 # user config file, overrides the default config if present
-└── master.yml                    # main playbook
+└── master.yml                  # main playbook
 ```
 
 ## First steps, before running any playbooks
@@ -78,7 +75,9 @@ brew install hudochenkov/sshpass/sshpass
 
 **CAREFUL** You also need to modify `host_vars/hosts.yml` to put your own rpi `ansible_host`, `ansible_user`, `ansible_password` and `ansible_python_interpreter`.
 
-Finally, refer to RpiSETUP.md for simple instructions upon flashing your SD Card.
+Then, refer to RpiSETUP.md for simple instructions upon flashing your SD Card.
+
+Finally, you need to add a SLACK_WEBHOOK_URL (incoming webhook app) in `vars/main.yml`. To get more information on how to create an incoming webhook app, see this [documentation](https://api.slack.com/tutorials/slack-apps-hello-world).
 
 ## Use master.yml playbook:
 This is the master playbook, used to setup our fleet of RPI. To run it:
@@ -117,11 +116,6 @@ To stop a service:
 ```bash
 ansible-playbook playbooks/stop_service_playbook.yml --extra-vars service=docker
 ```
-## Environment variables
-
-In the `.env.dist` file, you'll find a template of the `.env` which you need to add to your clone version of this repository. 
-It contains the `MAIN_RPI_USER` which is the user used to connect to the main RPI and its ip address `MAIN_RPI_IP`. This is currently 
-used to send image files over `rsync` from the RPI with camera to the main one for storage.
 
 ## Contributing
 Please refer to `CONTRIBUTING` if you wish to contribute to this project.

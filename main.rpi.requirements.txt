@@ -1,5 +1,0 @@
-gpiozero==1.6.2
-psutil==5.8.0
-pandas==1.2.3
-watchdog==2.0.2
-numpy==1.19.0

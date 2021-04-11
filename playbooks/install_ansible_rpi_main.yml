@@ -1,0 +1,47 @@
+---
+- name: setup ansible usage and tasks on main rpi
+  hosts: raspberry_masters
+
+  tasks:
+    - name: Include vars
+      include_vars: ../vars/main.yml
+
+    - name: install sshpass
+      apt:
+        name: sshpass
+        state: latest
+        update_cache: true
+      become: true
+      tags: ansible_main
+
+    - name: copy ansible_on_main_rpi folder
+      ansible.builtin.copy:
+        src: ../files/ansible_on_main_rpi/
+        dest: /home/pi/ansible_main
+      tags: ansible_main
+
+    - name: send slack_webhook_url
+      ansible.builtin.template:
+        src: ../templates/vars.yml.j2
+        dest: /home/pi/ansible_main/vars/main.yml
+
+    - name: install ansible_main requirements
+      pip:
+        requirements: /home/pi/ansible_main/requirements.txt
+        virtualenv: /home/pi/ansible_main/venv
+        virtualenv_command: python3 -m venv
+      tags: ansible_main
+
+    - name: install ansible_main yaml requirements
+      ansible.builtin.shell:
+        cmd: /home/pi/ansible_main/venv/bin/ansible-galaxy install -r requirements.yml
+        chdir: /home/pi/ansible_main
+      tags: ansible_main
+
+    - name: run ansible_main configure_rpi_camera playbook
+      ansible.builtin.shell:
+        cmd: /home/pi/ansible_main/venv/bin/ansible-playbook playbooks/configure_rpi_camera.yml
+        chdir: /home/pi/ansible_main
+      environment:
+        SLACK_WEBHOOK_URL: "{{ SLACK_WEBHOOK_URL }}"
+      tags: ansible_main

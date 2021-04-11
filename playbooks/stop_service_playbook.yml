@@ -8,4 +8,4 @@
         name: "{{ service }}"
         state: stopped
       become: true
-      tags: stop
+      tags: stop_service

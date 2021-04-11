@@ -4,4 +4,4 @@
 
   roles:
     - role: ../roles/rpi_camera_config
-      tags: always
+      tags: enable_camera

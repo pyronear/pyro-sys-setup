@@ -3,10 +3,8 @@
 - import_playbook: playbooks/deactivate_password_playbook.yml
 - import_playbook: playbooks/enable_camera_playbook.yml
 - import_playbook: playbooks/common_playbook.yml
+- import_playbook: playbooks/install_pyroengine.yml
 - import_playbook: playbooks/install_vision_dependencies.yml
 - import_playbook: playbooks/install_local_api_dependencies.yml
+- import_playbook: playbooks/install_ansible_rpi_main.yml
 - import_playbook: playbooks/add_jobs_crontab.yml
-- import_playbook: playbooks/run_scripts_camera_playbook.yml
-#- import_playbook: playbooks/stop_service_playbook.yml
-#  vars:
-#    service: docker

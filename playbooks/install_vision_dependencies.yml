@@ -13,16 +13,15 @@
         state: latest
         update_cache: true
       become: true
-      tags: always
+      tags: pyro-vision
 
     - name: install pytorch, torchvision & create venv
       pip:
         name:
           - https://github.com/pyronear/pyro-vision/releases/download/v0.1.2/torch-1.8.0a0+56b43f4-cp37-cp37m-linux_armv7l.whl
           - https://github.com/pyronear/pyro-vision/releases/download/v0.1.2/torchvision-0.9.1-cp37-cp37m-linux_armv7l.whl
-        virtualenv: /home/pi/python_scripts/venv
-        virtualenv_command: python3 -m venv
-      tags: always
+        virtualenv: /home/pi/pyro-engine/venv
+      tags: pyro-vision
 
     - name: install pyrovision
       pip:
@@ -30,5 +29,5 @@
           - pyrovision
           - torchvision==0.9.1
           - torch==1.8.0a0
-        virtualenv: /home/pi/python_scripts/venv
-      tags: always
+        virtualenv: /home/pi/pyro-engine/venv
+      tags: pyro-vision
