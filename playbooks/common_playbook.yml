@@ -2,21 +2,22 @@
 - name: raspberry common config
   hosts: raspberry
 
-  pre_tasks:
+  tasks:
     - name: install python3
       raw: test -r /usr/bin/python3 || (apt-get update && apt-get install -y python3)
-      tags: always
+      tags: common_config
 
-    - name: install pip3 and python3-venv
+    - name: install git, pip3 and python3-venv
       apt:
         name:
+          - git
           - python3-pip
           - python3-venv
         state: latest
         update_cache: true
       become: true
       register: apt_output
-      tags: always
+      tags: common_config
 
     - name: full upgrade of all packages
       apt:
@@ -30,16 +31,3 @@
       when: apt_output.changed
       become: true
       tags: dangerous
-
-  tasks:
-    - name: create folder to store images
-      file:
-        path: /home/pi/images
-        state: directory
-      tags: python_script
-
-    - name: create folder to store python scripts
-      file:
-        path: /home/pi/python_scripts
-        state: directory
-      tags: python_script

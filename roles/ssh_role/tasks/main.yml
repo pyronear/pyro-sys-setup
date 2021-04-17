@@ -1,5 +1,10 @@
 ---
 # tasks file for ssh_role
+- name: Wait 900 seconds for target connection to become reachable/usable
+  wait_for_connection:
+    timeout: 900
+    sleep: 5
+
 - name: create .ssh directory
   ansible.builtin.file:
     path: ~/.ssh/

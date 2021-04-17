@@ -1,0 +1,49 @@
+---
+- name: configure camera rpi from main rpi
+  hosts: raspberry_with_camera
+
+  tasks:
+    - name: create folder to store python_scripts
+      file:
+        path: /home/pi/python_scripts
+        state: directory
+      tags: python_scripts_camera
+
+    - name: copy pyro-engine/pyroengine/pi_utils/camera.rpi.requirements.txt
+      ansible.builtin.copy:
+        src: /home/pi/pyro-engine/pyroengine/pi_utils/camera.rpi.requirements.txt
+        dest: /home/pi/python_scripts/camera.rpi.requirements.txt
+      tags: python_scripts_camera
+
+    - name: copy .env file
+      ansible.builtin.copy:
+        src: /home/pi/ansible_main/templates/python.env
+        dest: /home/pi/python_scripts/.env
+      tags: python_scripts_camera
+
+    - name: copy python scripts from pyroengine/pi_utils to be executed later on hosts
+      ansible.builtin.copy:
+        src: /home/pi/pyro-engine/pyroengine/pi_utils/monitor_pi.py
+        dest: /home/pi/python_scripts/monitor_pi.py
+      tags: python_scripts_camera
+
+    - name: install camera.rpi.requirements.txt & create venv
+      pip:
+        requirements: /home/pi/python_scripts/camera.rpi.requirements.txt
+        virtualenv: /home/pi/python_scripts/venv
+        virtualenv_command: python3 -m venv
+      tags: python_scripts_camera
+
+    - name: add scripts to crontab to be launched on reboot
+      ansible.builtin.cron:
+        name: "Launch monitor pi script"
+        special_time: reboot
+        job: "/home/pi/python_scripts/venv/bin/python3 /home/pi/python_scripts/monitor_pi.py"
+      register: crontab_output
+
+  post_tasks:
+    - name: reboot of RPI
+      reboot:
+      when: crontab_output.changed
+      become: true
+      tags: dangerous

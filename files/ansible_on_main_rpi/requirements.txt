@@ -1,0 +1,2 @@
+ansible==3.1.0
+prettytable==2.1.0

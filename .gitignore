@@ -109,6 +109,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+python.env
 
 # Spyder project settings
 .spyderproject
@@ -136,3 +137,6 @@ dmypy.json
 
 # SSH public keys
 *.pub
+
+# Hide configuration variables
+vars/main.yml

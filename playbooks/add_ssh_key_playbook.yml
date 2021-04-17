@@ -4,4 +4,4 @@
 
   roles:
     - role: ../roles/ssh_role
-      tags: always
+      tags: ssh_role
