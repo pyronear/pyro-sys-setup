@@ -1,6 +1,6 @@
 ---
 - name: local-api dependecies and build
-  hosts: raspberry_masters
+  hosts: raspberry_mains
 
   roles:
     - role: geerlingguy.docker_arm
