@@ -79,6 +79,8 @@ Then, refer to RpiSETUP.md for simple instructions upon flashing your SD Card.
 
 Finally, you need to add a SLACK_WEBHOOK_URL (incoming webhook app) in `vars/main.yml`. To get more information on how to create an incoming webhook app, see this [documentation](https://api.slack.com/tutorials/slack-apps-hello-world).
 
+For instructions regarding the directory `files/ansible_on_main_rpi`, please refer to its `README.md` in the corresponding directory.
+
 ## Use master.yml playbook:
 This is the master playbook, used to setup our fleet of RPI. To run it:
 

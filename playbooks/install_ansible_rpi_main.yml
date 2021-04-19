@@ -1,6 +1,6 @@
 ---
 - name: setup ansible usage and tasks on main rpi
-  hosts: raspberry_masters
+  hosts: raspberry_mains
 
   tasks:
     - name: Include vars

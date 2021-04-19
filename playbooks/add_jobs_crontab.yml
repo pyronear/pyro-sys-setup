@@ -1,6 +1,6 @@
 ---
 - name: put jobs in crontab master rpi
-  hosts: raspberry_masters
+  hosts: raspberry_mains
 
   tasks:
     - name: add monitor_pi.py script to crontab to be launched on reboot

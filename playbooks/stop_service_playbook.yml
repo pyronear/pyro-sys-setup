@@ -1,6 +1,6 @@
 ---
 - name: stop service
-  hosts: raspberry_masters
+  hosts: raspberry_mains
 
   tasks:
     - name: stop service

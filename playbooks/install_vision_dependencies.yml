@@ -1,6 +1,6 @@
 ---
 - name: pyro-vision dependecies
-  hosts: raspberry_masters
+  hosts: raspberry_mains
 
   tasks:
     - name: install dependecies needed for pyro-vision module

@@ -1,6 +1,6 @@
 ---
 - name: install core repositories on rpi master
-  hosts: raspberry_masters
+  hosts: raspberry_mains
 
   tasks:
     - name: Clone pyro-engine
