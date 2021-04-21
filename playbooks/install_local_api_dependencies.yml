@@ -12,8 +12,8 @@
       ansible.builtin.copy:
         dest: /home/pi/pyro-engine/pyroengine/pi_utils/.env
         content: |
-          MAIN_RPI_IP=127.0.0.1
-          MAIN_RPI_WEBSERVER_PORT=8002
+          WEBSERVER_IP=127.0.0.1
+          WEBSERVER_PORT=8002
 
     - name: run docker-composer.yml (takes around 10 to 15 minutes)
       ansible.builtin.shell:
