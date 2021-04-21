@@ -1,0 +1,60 @@
+---
+- name: install openvpn client on rpi
+  hosts: raspberry_mains
+
+  tasks:
+    - name: Install openvpn
+      apt:
+        name: openvpn
+        state: latest
+        update_cache: true
+      become: true
+      tags: openvpn
+
+    - name: Create openvpn directory
+      ansible.builtin.file:
+        path: /etc/openvpn
+        state: directory
+      tags: openvpn
+
+    - name: Add client conf
+      ansible.builtin.copy:
+        dest: /etc/openvpn/client.conf
+        src: ../files/openvpn/{{ inventory_hostname }}.ovpn
+      become: true
+      tags: openvpn
+
+    - name: Add auth file
+      ansible.builtin.copy:
+        dest: /etc/openvpn/auth.txt
+        src: ../files/openvpn/{{ inventory_hostname }}_password.ovpn
+      become: true
+      tags: openvpn
+
+    - name: Add line for auth in client.conf
+      ansible.builtin.lineinfile:
+        path: /etc/openvpn/client.conf
+        regexp: "^#?askpass"
+        line: askpass /etc/openvpn/auth.txt
+      become: true
+      tags: openvpn
+
+    - name: Start service
+      ansible.builtin.shell:
+        cmd: openvpn --client --config /etc/openvpn/client.conf --daemon
+      become: true
+      tags: openvpn
+
+    - name: Add DNS name servers in dhcpcd.conf file
+      ansible.builtin.lineinfile:
+        path: /etc/dhcpcd.conf
+        regexp: "^#?static domain_name_servers"
+        line: static domain_name_servers=8.8.8.8 8.8.4.4
+      become: true
+      tags: openvpn
+
+    - name: Restart dhcpcd service
+      ansible.builtin.shell:
+        cmd: systemctl restart dhcpcd.service
+      become: true
+      tags: openvpn
