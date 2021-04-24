@@ -140,3 +140,6 @@ dmypy.json
 
 # Hide configuration variables
 vars/main.yml
+
+# OpenVPN conf files
+*.ovpn
