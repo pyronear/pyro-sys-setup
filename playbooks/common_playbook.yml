@@ -7,10 +7,11 @@
       raw: test -r /usr/bin/python3 || (apt-get update && apt-get install -y python3)
       tags: common_config
 
-    - name: install git, pip3 and python3-venv
+    - name: install git, vim, pip3 and python3-venv
       apt:
         name:
           - git
+          - vim
           - python3-pip
           - python3-venv
         state: latest
