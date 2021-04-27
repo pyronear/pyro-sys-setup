@@ -77,7 +77,19 @@ brew install hudochenkov/sshpass/sshpass
 
 Then, refer to RpiSETUP.md for simple instructions upon flashing your SD Card.
 
-Finally, you need to add a **SLACK_WEBHOOK_URL** (incoming webhook app) in `vars/main.yml`. To get more information on how to create an incoming webhook app, see this [documentation](https://api.slack.com/tutorials/slack-apps-hello-world).
+If you want multiple `id_rsa.pub` keys to be added on all your raspberry pis (other than the public key of the localhost 
+launching the playbooks), you can add the keys in the folder `files/ssh_localhost_keys`.
+These keys will then be added by the role `ssh_role` in the `authorized_keys` of your raspberry pis, allowing you to ssh on them if needed.
+Each public key has to be added in a separate file, for instance:
+- `id_rsa_user1.pub`
+- `id_rsa_user2.pub` \
+And so on. \
+The public key of the local machine that you are using to launch Ansible and the playbooks will be automatically added 
+  by the `ssh_role`, provided that you give the path to your public key in `roles/ssh_role/defaults/main.yml` by changing
+  the variable `public_key_path`.
+
+Finally, you need to add a **SLACK_WEBHOOK_URL** (incoming webhook app) in `vars/main.yml`. 
+To get more information on how to create an incoming webhook app, see this [documentation](https://api.slack.com/tutorials/slack-apps-hello-world).
 
 For instructions regarding the directory `files/ansible_on_main_rpi`, please refer to its `README.md` in the corresponding directory.
 

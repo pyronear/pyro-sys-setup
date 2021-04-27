@@ -10,11 +10,24 @@
     path: ~/.ssh/
     state: directory
 
-- name: Set authorized key on rpi taken from local file
+- name: Set authorized key on rpi taken from localhost file
   ansible.posix.authorized_key:
     user: "{{ ansible_user }}"
     state: present
     key: "{{ lookup('file', public_key_path) }}"
+
+- name: list file in directory
+  ansible.builtin.find:
+    paths: ../files/ssh_localhost_keys
+  register: files_list
+  delegate_to: 127.0.0.1
+
+- name: Set multiple authorized_keys on all rpi from folder files/ssh_localhost_keys
+  ansible.posix.authorized_key:
+    user: "{{ ansible_user }}"
+    state: present
+    key: "{{ lookup('file', item.path ) }}"
+  with_items: "{{ files_list.files }}"
 
 - name: Generated ssh key on rpi
   openssh_keypair:
