@@ -73,7 +73,7 @@ You need sshpass on your local machine:
 brew install hudochenkov/sshpass/sshpass
 ````
 
-**CAREFUL** You also need to modify `host_vars/hosts.yml` to put your own rpi `ansible_host`, `ansible_user`, `ansible_password` and `ansible_python_interpreter`.
+**CAREFUL** You also need to modify `host_vars/hosts.yml` to put your own rpi `ansible_host`, `ansible_user`, `ansible_password`, `ansible_python_interpreter` and `hostname`.
 
 Then, refer to RpiSETUP.md for simple instructions upon flashing your SD Card.
 

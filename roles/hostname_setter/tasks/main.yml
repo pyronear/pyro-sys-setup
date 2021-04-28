@@ -1,0 +1,30 @@
+---
+# tasks file for ssh_role
+- name: Wait 900 seconds for target connection to become reachable/usable
+  wait_for_connection:
+    timeout: 900
+    sleep: 5
+
+- name: change /etc/hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hostname
+    regexp: "^#?raspberrypi"
+    line: "{{ hostname }}"
+  become: true
+  register: hostname_file
+  tags: hostname
+
+- name: change /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^#?127.0.1.1"
+    line: "127.0.1.1    {{ hostname }}"
+  become: true
+  register: hosts
+  tags: hostname
+
+- name: reboot of RPI
+  reboot:
+  when: hostname_file.changed or hosts.changed
+  become: true
+  tags: dangerous

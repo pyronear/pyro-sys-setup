@@ -16,7 +16,7 @@ The layout is the following:
 ```
 
 The `templates/python.env` file must contain:
-- `WEBSERVER_IP`: the IP address of the main rpi once it is installed on site
+- `WEBSERVER_IP`: the dns of the main rpi once it is installed on site (it should correspond to the `hostname` of the main rpi)
 - `WEBSERVER_PORT`: the port exposed on the main rpi for the local webserver
 
 ### Playbooks:
