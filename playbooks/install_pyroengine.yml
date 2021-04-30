@@ -12,18 +12,17 @@
       until: not pyroengine_output.failed
       retries: 3
       delay: 10
-      tags: pyro-engine
+      tags: pyro_engine
 
-    - name: Update text file with old and new hash of the pyro-engine repository
+    - name: Update text file with new hash of the pyro-engine repository
       ansible.builtin.copy:
-        dest: /home/pi/pyroengine_versions.txt
-        content: |
-          "{{ pyroengine_output.before }}"
-          "{{ pyroengine_output.after }}"
+        dest: /home/pi/pyroengine_version.txt
+        content: "{{ pyroengine_output.after }}"
+      tags: pyro_engine
 
-    - name: install rpi master requirements from pyro-engine and create virtual env
+    - name: install rpi main requirements from pyro-engine and create virtual env
       pip:
         requirements: /home/pi/pyro-engine/main.rpi.requirements.txt
         virtualenv: /home/pi/pyro-engine/venv
         virtualenv_command: python3 -m venv
-      tags: pyro-engine
+      tags: pyro_engine

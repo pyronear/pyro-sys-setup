@@ -25,17 +25,32 @@
         src: ../templates/vars.yml.j2
         dest: /home/pi/ansible_main/vars/main.yml
 
+    - name: modify ansible.cfg to add slack webhook_url for security
+      ansible.builtin.lineinfile:
+        path: /home/pi/ansible_main/ansible.cfg
+        regexp: "^#?webhook_url"
+        line: webhook_url = {{ SLACK_WEBHOOK_URL }}
+      tags: ansible_main
+
     - name: install ansible_main requirements
       pip:
         requirements: /home/pi/ansible_main/requirements.txt
         virtualenv: /home/pi/ansible_main/venv
         virtualenv_command: python3 -m venv
+      register: requirements_output
+      until: not requirements_output.failed
+      retries: 3
+      delay: 10
       tags: ansible_main
 
     - name: install ansible_main yaml requirements
       ansible.builtin.shell:
         cmd: /home/pi/ansible_main/venv/bin/ansible-galaxy install -r requirements.yml
         chdir: /home/pi/ansible_main
+      register: requirements_output
+      until: not requirements_output.failed
+      retries: 3
+      delay: 10
       tags: ansible_main
 
     - name: run ansible_main configure_rpi_camera playbook
