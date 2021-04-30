@@ -10,8 +10,15 @@
         job: "/home/pi/pyro-engine/venv/bin/python3 /home/pi/pyro_engine/pyroengine/pi_utils/monitor_pi.py"
       register: crontab_output_monitor
 
+    - name: add bash script to ping google and make sure that rpi has internet / restart openVPN client if not
+      ansible.builtin.cron:
+        name: "Check internet status & restart"
+        minute: "*/15"
+        job: "bash /home/pi/pyro_engine/pyroengine/pi_utils/check_internet_connection.sh"
+      register: crontab_output_check_internet_connection
+
     - name: reboot of RPI
       reboot:
-      when: crontab_output_monitor.changed
+      when: crontab_output_monitor.changed or crontab_output_check_internet_connection.changed
       become: true
       tags: dangerous
