@@ -17,6 +17,14 @@
         job: "bash /home/pi/pyro_engine/pyroengine/pi_utils/check_internet_connection.sh"
       register: crontab_output_check_internet_connection
 
+    - name: add updater.py script to crontab to be launched once a day at 4:00 am
+      ansible.builtin.cron:
+        name: "Launch updater script"
+        minute: "0"
+        hour: "4"
+        job: "/home/pi/pyro-engine/venv/bin/python3 /home/pi/pyro_engine/pyroengine/pi_utils/updater.py"
+      register: crontab_output_monitor
+
     - name: reboot of RPI
       reboot:
       when: crontab_output_monitor.changed or crontab_output_check_internet_connection.changed
