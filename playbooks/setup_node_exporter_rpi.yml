@@ -3,11 +3,11 @@
   hosts: raspberry
 
   tasks:
-    - name: If armv6 architecture, download and unpack node_exporter for armv6 from prometheus 
+    - name: If armv6 architecture, download and unpack node_exporter for armv6 from prometheus
       ansible.builtin.unarchive:
         src: https://github.com/prometheus/node_exporter/releases/download/v1.1.2/node_exporter-1.1.2.linux-armv6.tar.gz
         dest: /home/pi/
-        remote_src: yes
+        remote_src: true
       become: true
       when: ansible_facts['architecture'] is search("armv6")
 
@@ -15,16 +15,16 @@
       ansible.builtin.copy:
         src: /home/pi/node_exporter-1.1.2.linux-armv6/node_exporter
         dest: /usr/local/bin/node_exporter
-        remote_src: yes
+        remote_src: true
         mode: u=rwx,g=rx,o=rx
       become: true
       when: ansible_facts['architecture'] is search("armv6")
 
-    - name: If armv7 architecture, download and unpack node_exporter for armv7 from prometheus 
+    - name: If armv7 architecture, download and unpack node_exporter for armv7 from prometheus
       ansible.builtin.unarchive:
         src: https://github.com/prometheus/node_exporter/releases/download/v1.1.2/node_exporter-1.1.2.linux-armv7.tar.gz
         dest: /home/pi/
-        remote_src: yes
+        remote_src: true
       become: true
       when: ansible_facts['architecture'] is search("armv7")
 
@@ -32,7 +32,7 @@
       ansible.builtin.copy:
         src: /home/pi/node_exporter-1.1.2.linux-armv7/node_exporter
         dest: /usr/local/bin/node_exporter
-        remote_src: yes
+        remote_src: true
         mode: u=rwx,g=rx,o=rx
       become: true
       when: ansible_facts['architecture'] is search("armv7")
@@ -40,7 +40,7 @@
     - name: create node_exporter user
       ansible.builtin.user:
         name: node_exporter
-        system: yes
+        system: true
         shell: /bin/false
       become: true
 
