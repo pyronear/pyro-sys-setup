@@ -8,7 +8,6 @@
         src: https://github.com/prometheus/node_exporter/releases/download/v1.1.2/node_exporter-1.1.2.linux-armv6.tar.gz
         dest: /home/pi/
         remote_src: true
-      become: true
       when: ansible_facts['architecture'] is search("armv6")
 
     - name: If armv6 architecture, copy node_exporter to /usr/local/bin/
@@ -25,7 +24,6 @@
         src: https://github.com/prometheus/node_exporter/releases/download/v1.1.2/node_exporter-1.1.2.linux-armv7.tar.gz
         dest: /home/pi/
         remote_src: true
-      become: true
       when: ansible_facts['architecture'] is search("armv7")
 
     - name: If armv7 architecture, copy node_exporter to /usr/local/bin/
