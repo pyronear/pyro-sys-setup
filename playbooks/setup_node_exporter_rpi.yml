@@ -1,0 +1,57 @@
+---
+- name: setup node exporter on rpis
+  hosts: raspberry
+
+  tasks:
+    - name: If armv6 architecture, download and unpack node_exporter for armv6 from prometheus
+      ansible.builtin.unarchive:
+        src: https://github.com/prometheus/node_exporter/releases/download/v1.1.2/node_exporter-1.1.2.linux-armv6.tar.gz
+        dest: /home/pi/
+        remote_src: true
+      when: ansible_facts['architecture'] is search("armv6")
+
+    - name: If armv6 architecture, copy node_exporter to /usr/local/bin/
+      ansible.builtin.copy:
+        src: /home/pi/node_exporter-1.1.2.linux-armv6/node_exporter
+        dest: /usr/local/bin/node_exporter
+        remote_src: true
+        mode: u=rwx,g=rx,o=rx
+      become: true
+      when: ansible_facts['architecture'] is search("armv6")
+
+    - name: If armv7 architecture, download and unpack node_exporter for armv7 from prometheus
+      ansible.builtin.unarchive:
+        src: https://github.com/prometheus/node_exporter/releases/download/v1.1.2/node_exporter-1.1.2.linux-armv7.tar.gz
+        dest: /home/pi/
+        remote_src: true
+      when: ansible_facts['architecture'] is search("armv7")
+
+    - name: If armv7 architecture, copy node_exporter to /usr/local/bin/
+      ansible.builtin.copy:
+        src: /home/pi/node_exporter-1.1.2.linux-armv7/node_exporter
+        dest: /usr/local/bin/node_exporter
+        remote_src: true
+        mode: u=rwx,g=rx,o=rx
+      become: true
+      when: ansible_facts['architecture'] is search("armv7")
+
+    - name: create node_exporter user
+      ansible.builtin.user:
+        name: node_exporter
+        system: true
+        shell: /bin/false
+      become: true
+
+    - name: create node_exporter service
+      ansible.builtin.template:
+        src: ../templates/node_exporter.service.j2
+        dest: /etc/systemd/system/node_exporter.service
+      become: true
+
+    - name: start and enable service
+      ansible.builtin.systemd:
+        name: node_exporter
+        state: started
+        daemon_reload: yes
+        enabled: yes
+      become: true

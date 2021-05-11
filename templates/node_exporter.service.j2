@@ -1,0 +1,16 @@
+[Unit]
+Description=Node Exporter
+After=network.target
+
+[Service]
+# User and group used to run this service.
+User=node_exporter
+Group=node_exporter
+Type=simple
+
+# Some node exporter collectors are enabled by default.
+# Please see https://github.com/prometheus/node_exporter#collectors for details
+ExecStart=/usr/local/bin/node_exporter
+
+[Install]
+WantedBy=multi-user.target
