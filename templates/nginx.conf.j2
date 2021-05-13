@@ -1,0 +1,74 @@
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+
+upstream mainpi {
+    least_conn;
+    server localhost:9100;
+}
+
+upstream server_api {
+    least_conn;
+    server localhost:8010;
+}
+
+#upstream picam1 {
+#    least_conn;
+#    server picam.local:9100;
+#}
+#upstream picam1 {
+#    least_conn;
+#    server 192.168.1.64:9100;
+#}
+
+{% for host in groups['raspberry_with_camera'] %}
+upstream {{ hostvars[host]['hostname'] }}_a {
+    least_conn;
+    server {{ hostvars[host]['hostname'] }}.local:9100;
+    server 192.168.1.64:9100;
+} 
+{% endfor %}
+
+
+
+server {
+
+  listen 80;
+  include /etc/nginx/common.conf;
+  include /etc/nginx/buffer.conf;
+
+
+  location /pi_central_metrics {
+    proxy_pass http://mainpi/metrics;
+    include /etc/nginx/common_location.conf;
+  }
+
+  location / {
+    proxy_pass http://server_api;
+    include /etc/nginx/common_location.conf;
+   }
+
+ # location /picam1_metrics {
+ #   proxy_pass http://picam1/metrics;
+ #   include /etc/nginx/common_location.conf;
+ # }
+
+  {% for host in groups['raspberry_with_camera'] %}
+    location /{{ hostvars[host]['hostname'] }}_metrics {
+        proxy_pass http://{{ hostvars[host]['hostname'] }}_a/metrics;
+        include /etc/nginx/common_location.conf;
+    } 
+    {% endfor %}
+
+  }
+
+}
+
+
