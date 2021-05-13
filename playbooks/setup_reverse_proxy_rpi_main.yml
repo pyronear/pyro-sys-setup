@@ -1,0 +1,34 @@
+---
+- name: setup nginx reverse proxy in order to let pi camera metrics available via VPN
+  hosts: raspberry_mains
+
+    tasks:
+    - name: sudo apt update
+      ansible.builtin.debug:
+        msg: "useless here car update done in common playbook"
+
+    - name: install nginx
+      apt:
+        name:
+          - nginx
+        state: latest
+        update_cache: true
+      become: true
+
+    - name: create nginx.conf from template 
+      ansible.builtin.template:
+        src: ../templates/nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+      become: true
+
+    - name: sudo /etc/init.d/nginx start
+      ansible.builtin.debug:
+        msg: "kikou"
+
+    - name: start and enable service. A TESTER
+      ansible.builtin.systemd:
+        name: nginx
+        state: started
+        daemon_reload: yes
+        enabled: yes
+      become: true
