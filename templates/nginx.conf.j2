@@ -16,7 +16,7 @@ upstream mainpi {
 
 upstream server_api {
     least_conn;
-    server localhost:8010;
+    server localhost:8002;
 }
 
 {% for host in groups['raspberry_with_camera'] %}
@@ -43,11 +43,6 @@ server {
     proxy_pass http://server_api;
     include /etc/nginx/common_location.conf;
    }
-
- # location /picam1_metrics {
- #   proxy_pass http://picam1/metrics;
- #   include /etc/nginx/common_location.conf;
- # }
 
   {% for host in groups['raspberry_with_camera'] %}
     location /{{ hostvars[host]['hostname'] }}_metrics {
