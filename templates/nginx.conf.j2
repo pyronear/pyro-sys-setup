@@ -19,23 +19,12 @@ upstream server_api {
     server localhost:8010;
 }
 
-#upstream picam1 {
-#    least_conn;
-#    server picam.local:9100;
-#}
-#upstream picam1 {
-#    least_conn;
-#    server 192.168.1.64:9100;
-#}
-
 {% for host in groups['raspberry_with_camera'] %}
 upstream {{ hostvars[host]['hostname'] }}_a {
     least_conn;
     server {{ hostvars[host]['hostname'] }}.local:9100;
-    server 192.168.1.64:9100;
 } 
 {% endfor %}
-
 
 
 server {
@@ -65,7 +54,7 @@ server {
         proxy_pass http://{{ hostvars[host]['hostname'] }}_a/metrics;
         include /etc/nginx/common_location.conf;
     } 
-    {% endfor %}
+   {% endfor %}
 
   }
 
