@@ -34,7 +34,7 @@
         dest: /etc/nginx/common.conf
       become: true
 
-    - name: start and enable service. A TESTER
+    - name: start and enable service
       ansible.builtin.systemd:
         name: nginx
         state: started
