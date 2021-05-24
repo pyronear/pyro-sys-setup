@@ -59,11 +59,20 @@
     key: "{{ lookup('file', item.path ) }}"
   with_items: "{{ files_list.files }}"
 
-- name: set known_hosts on all rpi
+- name: set known_hosts on all rpi using id address
   ansible.builtin.known_hosts:
     name: "{{ item.value.ansible_host }}"
     state: present
     key: >
       {{ item.value.ansible_host }}
+      {{ lookup('file', '../files/ssh_ecdsa_keys/ssh_host_ecdsa_key_' + item.key + '.pub' ) }}
+  loop: "{{ hostvars | dict2items }}"
+
+- name: set known_hosts on all rpi with hostname dns
+  ansible.builtin.known_hosts:
+    name: "{{ item.value.hostname }}.local"
+    state: present
+    key: >
+      {{ item.value.hostname }}.local
       {{ lookup('file', '../files/ssh_ecdsa_keys/ssh_host_ecdsa_key_' + item.key + '.pub' ) }}
   loop: "{{ hostvars | dict2items }}"
