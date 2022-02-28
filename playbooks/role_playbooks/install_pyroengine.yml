@@ -4,4 +4,4 @@
 
   roles:
     - role: ../../roles/install_pyroengine
-      tags: intall_pyroengine_role
+      tags: pyro_engine
