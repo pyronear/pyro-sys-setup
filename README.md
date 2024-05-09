@@ -1,153 +1,33 @@
 # pyro-sys-setup
-Set-up and manage our hardware fire detection systems.
+Set-up and manage Pyronear hardware fire detection systems.
 
-Actually, this is a proposed skeleton of this project and guidelines for clean and tidy usage. These are subject to future developments.
+## Setup
 
-## Table of contents
+### Configuration requirements
 
-- [pyro-sys-setup](#pyro-sys-setup)
-  * [Table of contents](#table-of-contents)
-  * [Getting started](#getting-started)
-    + [Prerequisites](#prerequisites)
-    + [Installation](#installation)
-  * [Usage](#usage)
-  * [Directory layout](#directory-layout)
-  * [First steps](#first-steps-before-running-any-playbooks)
-  * [Use master.yml playbook](#use-masteryml-playbook)
-  * [Example of playbooks to run independently](#example-of-playbooks-to-run-independently)
-  * [Contributing](#contributing)
-  * [License](#license)
+To configure the raspberry pi, you need to provide the following configuration files:
+*Files supposed to be available at the root of this repository, but you can change path in CONFIG.sh*
 
-## Getting started
+- `.env` file as requested in [pyro-engine](https://github.com/pyronear/pyro-engine/tree/main?tab=readme-ov-file#full-docker-orchestration).
+- `credentials.json` as requested in [pyro-engine](https://github.com/pyronear/pyro-engine/tree/main?tab=readme-ov-file#full-docker-orchestration).
+- Authorized public keys files in `SSH_PUB_KEYS` directory.
+- An OpenVPN (.ovpn) configuration file.
 
-### Prerequisites
+### Setting up the raspberry pi & run the services
 
-- Python 3.6 (or more recent)
-- [pip](https://pip.pypa.io/en/stable/)
+Once configuration requirements are fullfilled, from the root of this repository run : 
 
-### Installation
-
-You can clone and install the project dependencies as follows:
-
-```bash
-git clone https://github.com/pyronear/pyro-sys-setup.git
-pip install -r pyro-sys-setup/requirements.txt
-ansible-galaxy install -r requirements.yml
-```
-
-## Usage
-By convention, we will use YAML format for inventory files.
-
-Following Ansible [guidelines](https://docs.ansible.com/ansible/latest/user_guide/sample_setup.html), you can find below the structure of the project
-
-## Directory layout
-
-```bash
-.
-├── CONTRIBUTING.md
-├── LICENSE
-├── README.md
-├── RpiSETUP.md                 # guidelines to setup your Raspberry Pi before using this repository
-├── group_vars		            # directory to assign variables to particular groups
-│   └── group_example.yml       
-├── host_vars                   # directory to assign variables to particular systems
-│   └── hosts.yml         # inventory file 
-├── files                       # directory to gather files and folders needed for system roles/tasks
-├──    └──ansible_on_main_rpi         # directory containing all related ansible files needed for master rpi to run playbooks
-├── templates                   # directory to gather files needed for templating
-├── vars                        # directory containing Ansible environment variables (see main.yml.dist for template)
-├── requirements.txt
-├── requirements.yml
-├── playbooks                   # directory to gather playbooks
-├── roles                       # directory to gather roles
-│   └── common
-│       └── main_exemple.yml
-├── ansible.cfg                 # user config file, overrides the default config if present
-└── master.yml                  # main playbook
-```
-
-## First steps, before running any playbooks
-
-You need sshpass on your local machine:
-````bash
-brew install hudochenkov/sshpass/sshpass
-````
-
-**CAREFUL** You also need to modify `host_vars/hosts.yml` to put your own rpi `ansible_host`, `ansible_user`, `ansible_password`, `ansible_python_interpreter` and `hostname`.
-
-Then, refer to RpiSETUP.md for simple instructions upon flashing your SD Card.
-
-If you want multiple `id_rsa.pub` keys to be added on all your raspberry pis (other than the public key of the localhost 
-launching the playbooks), you can add the keys in the folder `files/ssh_localhost_keys`.
-These keys will then be added by the role `ssh_role` in the `authorized_keys` of your raspberry pis, allowing you to ssh on them if needed.
-Each public key has to be added in a separate file, for instance:
-- `id_rsa_user1.pub`
-- `id_rsa_user2.pub` \
-And so on. \
-The public key of the local machine that you are using to launch Ansible and the playbooks will be automatically added 
-  by the `ssh_role`, provided that you give the path to your public key in `roles/ssh_role/defaults/main.yml` by changing
-  the variable `public_key_path`.
-
-Finally, you need to add a **SLACK_WEBHOOK_URL** (incoming webhook app) in `vars/main.yml`. 
-To get more information on how to create an incoming webhook app, see this [documentation](https://api.slack.com/tutorials/slack-apps-hello-world).
-
-For instructions regarding the directory `files/ansible_on_main_rpi`, please refer to its `README.md` in the corresponding directory.
-
-## Usage of OpenVPN
-
-On our installation we decided to use OpenVPN. The client and everything related are installed through the playbook 
-`playbooks/install_openvpn_client.yml`. In order to use it correctly, on all `raspberry_mains`, once needs to add the generated
-`.ovpn` files and corresponding passwords in the directory `files/openvpn`. For each main raspberry, the structure is the following:
-- `{ raspberry_name_in_hosts.yml }.ovpn`: the client file generated by our OpenVPN server
-- `{ raspberry_name_in_hosts.yml }_password.ovpn`: the password of the raspberry's OpenVPN account (you have to create this file).
-
-**If you do not use OpenVPN, do not run this playbook**.
-
-## Use master.yml playbook:
-This is the master playbook, used to setup our fleet of RPI. To run it:
-
-```bash
-ansible-playbook master.yml
-```
-
-## Example of playbooks to run independently:
-
-If rather than using directly the master playbook you'd like to take a look at each playbook independently, you can follow these steps:
-
-On first try:
-````bash
-ansible-playbook playbooks/add_ssh_key_playbook.yml
-````
-with role to set up ssh connexion with keys
-
-Then, to deactivate password authentification:
-````bash
-ansible-playbook playbooks/deactivate_password_playbook.yml
-````
-
-To run enable camera usage on RPI:
-```bash
-ansible-playbook playbooks/enable_camera_playbook.yml
-```
-
-To run the core playbook:
-```bash
-ansible-playbook playbooks/common_playbook.yml
-```
-**CAREFUL** `tags=always` are always run ! 
-
-To stop a service:
-```bash
-ansible-playbook playbooks/stop_service_playbook.yml --extra-vars service=docker
+```shell
+bash setup_rpi.sh
 ```
 
 ## Contributing
-Please refer to `CONTRIBUTING` if you wish to contribute to this project.
+
+Please refer to [`CONTRIBUTING`](CONTRIBUTING.md) if you wish to contribute to this project.
+
+## Credits
+
+This project is developed and maintained by the repo owner and volunteers from [Pyronear](https://pyronear.org/).
 
 ## License 
-Distributed under the Apache 2.0 License. See LICENSE for more information.
-
-
-
-
-
+Distributed under the Apache 2 License. See [`LICENSE`](LICENSE) for more information.
