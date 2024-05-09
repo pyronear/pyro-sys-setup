@@ -15,6 +15,7 @@ To configure the raspberry pi, you need to provide the following configuration f
 - `credentials.json` as requested in [pyro-engine](https://github.com/pyronear/pyro-engine/tree/main?tab=readme-ov-file#full-docker-orchestration).
 - Authorized public keys files in `SSH_PUB_KEYS` directory.
 - An OpenVPN (.ovpn) configuration file.
+- the [`config.sh`](config.sh) fullfilled with your information
 
 ### 3. Setting up the raspberry pi & run the services
 
