@@ -1,6 +1,6 @@
 ---
 - name: setup node exporter on rpis
-  hosts: raspberry
+  hosts: rasp-brison
 
   tasks:
     - name: If armv6 architecture, download and unpack node_exporter for armv6 from prometheus
@@ -34,6 +34,22 @@
         mode: u=rwx,g=rx,o=rx
       become: true
       when: ansible_facts['architecture'] is search("armv7")
+
+    - name: If arm64 architecture, download and unpack node_exporter for aarch64 from prometheus
+      ansible.builtin.unarchive:
+        src: https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-arm64.tar.gz
+        dest: /home/pi/
+        remote_src: true
+      when: ansible_facts['architecture'] is search("aarch64")
+
+    - name: If arm64 architecture, copy node_exporter to /usr/local/bin/
+      ansible.builtin.copy:
+        src: /home/pi/node_exporter-1.5.0.linux-arm64/node_exporter
+        dest: /usr/local/bin/node_exporter
+        remote_src: true
+        mode: u=rwx,g=rx,o=rx
+      become: true
+      when: ansible_facts['architecture'] is search("aarch64")
 
     - name: create node_exporter user
       ansible.builtin.user:
