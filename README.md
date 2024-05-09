@@ -3,7 +3,10 @@ Set-up and manage Pyronear hardware fire detection systems.
 
 ## Setup
 
-### Configuration requirements
+### 1. Install raspberry pi os
+Please follow the steps in [`RPI_INSTALLATION`](RPI_INSTALLATION.md) to have a rapsberry pi properly running
+
+### 2. Configuration requirements
 
 To configure the raspberry pi, you need to provide the following configuration files:
 *Files supposed to be available at the root of this repository, but you can change path in CONFIG.sh*
@@ -13,10 +16,7 @@ To configure the raspberry pi, you need to provide the following configuration f
 - Authorized public keys files in `SSH_PUB_KEYS` directory.
 - An OpenVPN (.ovpn) configuration file.
 
-### Install raspberry pi os
-Please follow the steps in [`RPI_INSTALLATION`](RPI_INSTALLATION.md) to have a rapsberry pi properly running
-
-### Setting up the raspberry pi & run the services
+### 3. Setting up the raspberry pi & run the services
 
 Once configuration requirements are fullfilled, from the root of this repository run : 
 
