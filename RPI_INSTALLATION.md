@@ -1,4 +1,4 @@
-# RPI Setup
+# Installing raspberry pi image
 
 ## Flash SD Card with Raspbian 
 
