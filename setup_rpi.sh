@@ -23,8 +23,6 @@ commands=(
     "sudo apt-get update && sudo apt-get --allow-releaseinfo-change update"
     "sudo apt-get install -y python3-dev python3-pip git openvpn"
     "curl -sSL https://get.docker.com | sh && sudo usermod -aG docker pi"
-    "sudo apt update -y"
-    "sudo apt install docker-compose"
 )
 
 for cmd in "${commands[@]}"; do
