@@ -1,8 +1,23 @@
 #!/bin/bash
 
 # === Load Config ===
+
+# Retrieve the absolute path of the directory containing the script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 # Source variables from the variables file
-source config.sh
+source rpi_config.env
+
+# Build directory path
+## Path to directory containing SSH public keys
+SSH_KEYS_DIR="$SCRIPT_DIR/$SSH_KEYS_DIR_NAME"
+
+## VPN config info
+OPENVPN_CONFIG_FILE_PATH="$SCRIPT_DIR/$OPENVPN_CONFIG_FILE_NAME"
+
+## pyro-engine config file
+PYROENGINE_ENV_FILE_PATH="$SCRIPT_DIR/$PYROENGINE_ENV_FILE_NAME"
+PYROENGINE_CREDENTIALS_LOCAL_PATH="$SCRIPT_DIR/$PYROENGINE_CREDENTIALS_FILE_NAME"
 
 # === Adding some authorized public keys ===
 echo "=== Adding some authorized public keys ==="
