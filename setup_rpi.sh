@@ -35,7 +35,7 @@ done
 # === Running main apt install commands ===
 echo "=== Running main apt install commands ==="
 commands=(
-    "sudo apt-get update && sudo apt-get --allow-releaseinfo-change update"
+    "sudo apt-get update -y && sudo apt-get --allow-releaseinfo-change -y update"
     "sudo apt-get install -y python3-dev python3-pip git openvpn"
     "curl -sSL https://get.docker.com | sh && sudo usermod -aG docker pi"
 )
