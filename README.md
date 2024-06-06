@@ -35,11 +35,22 @@ OPEN_VPN_PASSWORD="THE_RPI_OPEN_VPN_PASSWORD"
 ## pyro-engine config files
 PYROENGINE_ENV_FILE_NAME=".env"
 PYROENGINE_CREDENTIALS_FILE_NAME="credentials.json"
+
+## Network
+# Wifi 
+WIFI_SSID="NAME_THE_WIFI_ACESS_POINT"
+WIFI_PASSWORD="THE_PASSWORD_OF_YOUR_WIFI"
+# Static ip
+STATIC_ETHERNET_IP="169.254.40.99"
+DEFAULT_GATEWAY="192.168.1.254"
+DEFAULT_DNS="8.8.8.8 8.8.4.4"
 ```
 
 ### 3. Setting up the raspberry pi & run the services
 
 Once configuration requirements are fullfilled, from the root of this repository run : 
+
+*you will be asked the password you define previously*
 
 ```shell
 bash setup_rpi.sh
