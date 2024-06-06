@@ -129,3 +129,21 @@ echo "The raspberry Pi is now available "
 # === Start pyro-engine services ===
 echo "=== Start pyro-engine services ==="
 ssh  $PI_USERNAME@$PI_HOST "cd /home/pi/pyro-engine/ && make run"
+
+# === Network setup: wifi & static ethernet ===
+echo "=== Network setup: wifi & static ethernet ==="
+commands=(
+    "sudo nmcli con add type wifi ifname wlan0 con-name $WIFI_SSID ssid $WIFI_SSID -- wifi-sec.key-mgmt wpa-psk wifi-sec.psk $WIFI_PASSWORD connection.autoconnect yes" 
+    "sudo nmcli connection add type ethernet ifname eth0 con-name static-eth0 ipv4.addresses $STATIC_ETHERNET_IP/16 ipv4.gateway $DEFAULT_GATEWAY ipv4.method manual"
+    "sudo nmcli connection modify static-eth0 ipv4.dns \"$DEFAULT_DNS\""
+    "sudo nmcli connection up static-eth0"
+)
+
+for cmd in "${commands[@]}"; do
+    ssh $PI_USERNAME@$PI_HOST "$cmd"
+    if [ $? -eq 0 ]; then
+        echo "Command \"$cmd\" executed successfully."
+    else
+        echo "Error while executing command \"$cmd\"."
+    fi
+done
