@@ -11,7 +11,9 @@ You need to :
 - set a device hostname
 - enable ssh
 
-Once this is done, you can eject the SD Card, plug it into your RPI and power the RPI. You can then ssh on it, using your local machine (**careful the RPI needs to be on the same local network as your machine, for exemple by connecting you RPI using ethenet cable to your internet box**):
+Once this is done, you can eject the SD Card, plug it into your RPI and power the RPI. You can then ssh on it, using your local machine (**careful the RPI needs to be on the same local network as your machine, for exemple by connecting you RPI using ethernet cable to your internet box**)
+
+Also, if you would configure muliple sd card, for each sd flashed, the RPI has to be unplugged and plugged to properly boot for the first time ! 
 
 ```bash
 ssh pi@THE_CHOSEN_HOSTNAME.local
