@@ -126,6 +126,7 @@ if [[ -n "${WIFI_SSID// }" ]]; then
     echo "WIFI SSID provided, setting up wifi"
     ssh  pi@$PI_HOST sudo nmcli con add type wifi ifname wlan0 con-name $WIFI_SSID ssid $WIFI_SSID -- wifi-sec.key-mgmt wpa-psk wifi-sec.psk $WIFI_PASSWORD connection.autoconnect yes 
 
+echo "If you are connected to the raspbeery via ethernet, you may lose the connection in a few moments. This is normal, as you have configured a fixed ip address."
 commands=(
     "sudo nmcli connection add type ethernet ifname eth0 con-name static-eth0 ipv4.addresses $STATIC_ETHERNET_IP/16 ipv4.method manual"
     "sudo nmcli connection modify static-eth0 ipv4.dns \"$DEFAULT_DNS\""
