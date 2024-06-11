@@ -11,35 +11,8 @@ You need to :
 - set a device hostname
 - enable ssh
 
-## Setup with command line (Optionnal)
-### Enable SSH
+Once this is done, you can eject the SD Card, plug it into your RPI and power the RPI. You can then ssh on it, using your local machine (**careful the RPI needs to be on the same local network as your machine, for exemple by connecting you RPI using ethenet cable to your internet box**):
 
-SSH needs to be enabled so that you can log onto your RPI. To do so, an empty ssh file must be created, on linux or mac os, you can run the following command:
-
-```bash
-touch /Volumes/boot/ssh
-```
-
-### Add WiFi network information
-
-First, you need to create the following file:
-```bash
-touch /Volumes/boot/wpa_supplicant.conf
-vim /Volumes/boot/wpa_supplicant.conf
-```
-Then add your network information:
-```
-country=FR
-ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
-update_config=1
-
-network={
-    ssid="NETWORK-NAME"
-    psk="NETWORK-PASSWORD"
-}
-```
-
-Once this is done, you can eject the SD Card and plug it into your RPI. You can then ssh on it, using your local machine (**careful the RPI needs to be on the same local network as your machine**):
 ```bash
 ssh pi@THE_CHOSEN_HOSTNAME.local
 ```
