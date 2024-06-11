@@ -120,9 +120,13 @@ echo "=== Start pyro-engine services ==="
 ssh  pi@$PI_HOST "cd /home/pi/pyro-engine/ && make run"
 
 # === Network setup: wifi & static ethernet ===
-echo "=== Network setup: wifi & static ethernet ==="
+echo "=== Network setup: wifi(optionnal) & static ethernet ==="
+
+if [[ -n "${WIFI_SSID// }" ]]; then
+    echo "WIFI SSID provided, setting up wifi"
+    ssh  pi@$PI_HOST sudo nmcli con add type wifi ifname wlan0 con-name $WIFI_SSID ssid $WIFI_SSID -- wifi-sec.key-mgmt wpa-psk wifi-sec.psk $WIFI_PASSWORD connection.autoconnect yes 
+
 commands=(
-    "sudo nmcli con add type wifi ifname wlan0 con-name $WIFI_SSID ssid $WIFI_SSID -- wifi-sec.key-mgmt wpa-psk wifi-sec.psk $WIFI_PASSWORD connection.autoconnect yes" 
     "sudo nmcli connection add type ethernet ifname eth0 con-name static-eth0 ipv4.addresses $STATIC_ETHERNET_IP/16 ipv4.method manual"
     "sudo nmcli connection modify static-eth0 ipv4.dns \"$DEFAULT_DNS\""
     "sudo nmcli connection up static-eth0"

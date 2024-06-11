@@ -36,9 +36,11 @@ PYROENGINE_ENV_FILE_PATH="PATH_TO_PYROENGINE_ENV_FILE_NAME.env"
 PYROENGINE_CREDENTIALS_LOCAL_PATH="PATH_TO_credentials.json"
 
 ## Network
-# Wifi 
-WIFI_SSID="NAME_THE_WIFI_ACESS_POINT"
-WIFI_PASSWORD="THE_PASSWORD_OF_YOUR_WIFI"
+# Wifi OPTIONAL
+# Configuring a wifi is optional here, you can let the following variables as an empty string if you do not want to setup a wifi access
+WIFI_SSID=""   #NAME_THE_WIFI_ACESS_POINT
+WIFI_PASSWORD=""
+
 # Static ip
 STATIC_ETHERNET_IP="169.254.40.99"
 DEFAULT_DNS="8.8.8.8 8.8.4.4"
