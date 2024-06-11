@@ -23,7 +23,7 @@ PYROENGINE_CREDENTIALS_LOCAL_PATH="$SCRIPT_DIR/$PYROENGINE_CREDENTIALS_FILE_NAME
 echo "=== Adding some authorized public keys ==="
 for pubkey_file in $SSH_KEYS_DIR/*.pub; do
     echo $pubkey_file
-    ssh-copy-id -f -i $pubkey_file $PI_USERNAME@$PI_HOST
+    ssh-copy-id -f -i $pubkey_file pi@$PI_HOST
 
     if [ $? -eq 0 ]; then
         echo "Public key $pubkey_file successfully added."
@@ -41,7 +41,7 @@ commands=(
 )
 
 for cmd in "${commands[@]}"; do
-    ssh $PI_USERNAME@$PI_HOST "$cmd"
+    ssh pi@$PI_HOST "$cmd"
     if [ $? -eq 0 ]; then
         echo "Command \"$cmd\" executed successfully."
     else
@@ -51,7 +51,7 @@ done
 
 # === VPN setup steps ===
 echo "=== VPN setup steps ==="
-scp $OPENVPN_CONFIG_FILE_PATH $PI_USERNAME@$PI_HOST:/home/pi/client.conf
+scp $OPENVPN_CONFIG_FILE_PATH pi@$PI_HOST:/home/pi/client.conf
 
 if [ $? -eq 0 ]; then
     echo "VPN Configuration file sent successfully."
@@ -68,7 +68,7 @@ commands=(
 )
 
 for cmd in "${commands[@]}"; do
-    ssh $PI_USERNAME@$PI_HOST "$cmd"
+    ssh pi@$PI_HOST "$cmd"
     if [ $? -eq 0 ]; then
         echo "Command \"$cmd\" executed successfully."
     else
@@ -80,21 +80,21 @@ done
 echo "=== PYRO ENGINE setup steps ==="
 
 # clone pyro-engine main branch
-ssh $PI_USERNAME@$PI_HOST sudo git clone --branch main https://github.com/pyronear/pyro-engine.git
+ssh pi@$PI_HOST sudo git clone --branch main https://github.com/pyronear/pyro-engine.git
 
 # Transfer env file & move it to pyro-engine folder
-scp $PYROENGINE_ENV_FILE_PATH $PI_USERNAME@$PI_HOST:.env
-ssh  $PI_USERNAME@$PI_HOST sudo mv /home/pi/.env /home/pi/pyro-engine/.env
+scp $PYROENGINE_ENV_FILE_PATH pi@$PI_HOST:.env
+ssh  pi@$PI_HOST sudo mv /home/pi/.env /home/pi/pyro-engine/.env
 
 # Transfer credentials file & move it to pyro-engine folder
-scp $PYROENGINE_CREDENTIALS_LOCAL_PATH $PI_USERNAME@$PI_HOST:credentials.json
+scp $PYROENGINE_CREDENTIALS_LOCAL_PATH pi@$PI_HOST:credentials.json
 
 commands=(
     "sudo mkdir -p /home/pi/pyro-engine/data/"
     "sudo mv /home/pi/credentials.json /home/pi/pyro-engine/data/credentials.json"
 )
 for cmd in "${commands[@]}"; do
-    ssh $PI_USERNAME@$PI_HOST "$cmd"
+    ssh pi@$PI_HOST "$cmd"
     if [ $? -eq 0 ]; then
         echo "Command \"$cmd\" executed successfully."
     else
@@ -112,12 +112,12 @@ NEW_CRON_TAB=$(cat << EOF
 EOF
 )
 
-echo "$NEW_CRON_TAB" | ssh $PI_USERNAME@$PI_HOST "crontab -"
+echo "$NEW_CRON_TAB" | ssh pi@$PI_HOST "crontab -"
 
 # === reboot ===
 echo "=== reboot ==="
 
-ssh  $PI_USERNAME@$PI_HOST sudo reboot
+ssh  pi@$PI_HOST sudo reboot
 
 echo "Waiting for the Raspberry Pi to be restarted"
 sleep 10
@@ -128,7 +128,7 @@ echo "The raspberry Pi is now available "
 
 # === Start pyro-engine services ===
 echo "=== Start pyro-engine services ==="
-ssh  $PI_USERNAME@$PI_HOST "cd /home/pi/pyro-engine/ && make run"
+ssh  pi@$PI_HOST "cd /home/pi/pyro-engine/ && make run"
 
 # === Network setup: wifi & static ethernet ===
 echo "=== Network setup: wifi & static ethernet ==="
@@ -140,7 +140,7 @@ commands=(
 )
 
 for cmd in "${commands[@]}"; do
-    ssh $PI_USERNAME@$PI_HOST "$cmd"
+    ssh pi@$PI_HOST "$cmd"
     if [ $? -eq 0 ]; then
         echo "Command \"$cmd\" executed successfully."
     else
