@@ -134,7 +134,7 @@ ssh  pi@$PI_HOST "cd /home/pi/pyro-engine/ && make run"
 echo "=== Network setup: wifi & static ethernet ==="
 commands=(
     "sudo nmcli con add type wifi ifname wlan0 con-name $WIFI_SSID ssid $WIFI_SSID -- wifi-sec.key-mgmt wpa-psk wifi-sec.psk $WIFI_PASSWORD connection.autoconnect yes" 
-    "sudo nmcli connection add type ethernet ifname eth0 con-name static-eth0 ipv4.addresses $STATIC_ETHERNET_IP/16 ipv4.gateway $DEFAULT_GATEWAY ipv4.method manual"
+    "sudo nmcli connection add type ethernet ifname eth0 con-name static-eth0 ipv4.addresses $STATIC_ETHERNET_IP/16 ipv4.method manual"
     "sudo nmcli connection modify static-eth0 ipv4.dns \"$DEFAULT_DNS\""
     "sudo nmcli connection up static-eth0"
 )
