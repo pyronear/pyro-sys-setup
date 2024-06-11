@@ -8,20 +8,9 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 # Source variables from the variables file
 source rpi_config.env
 
-# Build directory path
-## Path to directory containing SSH public keys
-SSH_KEYS_DIR="$SCRIPT_DIR/$SSH_KEYS_DIR_NAME"
-
-## VPN config info
-OPENVPN_CONFIG_FILE_PATH="$SCRIPT_DIR/$OPENVPN_CONFIG_FILE_NAME"
-
-## pyro-engine config file
-PYROENGINE_ENV_FILE_PATH="$SCRIPT_DIR/$PYROENGINE_ENV_FILE_NAME"
-PYROENGINE_CREDENTIALS_LOCAL_PATH="$SCRIPT_DIR/$PYROENGINE_CREDENTIALS_FILE_NAME"
-
 # === Adding some authorized public keys ===
 echo "=== Adding some authorized public keys ==="
-for pubkey_file in $SSH_KEYS_DIR/*.pub; do
+for pubkey_file in $SSH_KEYS_DIR_PATH/*.pub; do
     echo $pubkey_file
     ssh-copy-id -f -i $pubkey_file pi@$PI_HOST
 

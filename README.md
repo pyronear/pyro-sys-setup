@@ -21,20 +21,19 @@ To configure the raspberry pi, you need to provide the following configuration f
 So your `rpi_config.env` file should look like something similar to:
 
 ```
-PI_USERNAME="pi" 
 PI_HOST="THE ACTUAL IP ADRESS OF YOUR RPI" 
 
 ## SSH KEYS
 # Path to directory containing SSH public keys
-SSH_KEYS_DIR_NAME="SSH_PUB_KEYS"
+SSH_KEYS_DIR_PATH="PATH_TO_DIRECTORY_CONTAINING_SSH_PUB_KEYS"
 
 ## VPN config info
-OPENVPN_CONFIG_FILE_NAME="NAME_OF_YOUR_OPEN_VPN_FILE.ovpn"
+OPENVPN_CONFIG_FILE_PATH = "PATH_TO_YOUR_OPEN_VPN_FILE.ovpn"
 OPEN_VPN_PASSWORD="THE_RPI_OPEN_VPN_PASSWORD"
 
 ## pyro-engine config files
-PYROENGINE_ENV_FILE_NAME=".env"
-PYROENGINE_CREDENTIALS_FILE_NAME="credentials.json"
+PYROENGINE_ENV_FILE_PATH="PATH_TO_PYROENGINE_ENV_FILE_NAME.env"
+PYROENGINE_CREDENTIALS_LOCAL_PATH="PATH_TO_credentials.json"
 
 ## Network
 # Wifi 
@@ -42,7 +41,6 @@ WIFI_SSID="NAME_THE_WIFI_ACESS_POINT"
 WIFI_PASSWORD="THE_PASSWORD_OF_YOUR_WIFI"
 # Static ip
 STATIC_ETHERNET_IP="169.254.40.99"
-DEFAULT_GATEWAY="192.168.1.254"
 DEFAULT_DNS="8.8.8.8 8.8.4.4"
 ```
 
