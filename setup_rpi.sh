@@ -1,10 +1,6 @@
 #!/bin/bash
 
 # === Load Config ===
-
-# Retrieve the absolute path of the directory containing the script
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-
 # Source variables from the variables file
 source rpi_config.env
 
