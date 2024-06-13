@@ -143,3 +143,9 @@ vars/main.yml
 
 # OpenVPN conf files
 *.ovpn
+
+# Pyronear cameras credentials
+credentials.json
+
+# .env file
+*.env

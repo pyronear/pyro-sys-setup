@@ -1,7 +1,0 @@
----
-- name: install core repositories on rpi master
-  hosts: raspberry_mains
-
-  roles:
-    - role: ../../roles/install_pyroengine
-      tags: pyro_engine

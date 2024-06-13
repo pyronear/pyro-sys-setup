@@ -1,7 +1,0 @@
----
-- name: ssh config
-  hosts: raspberry
-
-  roles:
-    - role: ../roles/ssh_role
-      tags: ssh_role
