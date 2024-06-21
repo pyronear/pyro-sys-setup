@@ -23,13 +23,18 @@ report these as CAM_USER and CAM_PWD in .env file
 ### 3. setting up cameras
 If you have followed previous steps correctly, you have an .env file and a cameras_config.json file fullfilled. 
 
-Now, from the root of this repository run : 
+3.1 install required librairies in running the following : 
+
+```
+pip install requirements.txt
+```
+
+3.2 Now, from the root of this repository run : 
 *By default, the script is looking for .env and cameras_config in this repository but you can specify a path for each config file, use `python setup_reolink_cameras.py -h` for help*
 
 ``` bash
 python setup_reolink_cameras.py
 ```
-(MIGHT NEED PYTON REQUIREMENTS explanations and requirments.txt file to installed required libraries)
 
 ## Raspberry pi Setup
 
