@@ -6,7 +6,7 @@
     - You will be asked to define a user & pwd : report information you have chosen in .env previously
     - To find the ip adresse of the camera
         - Access settings clicking the wheel near cameras name
-        - click then on "Network", then "network information"
+        - Click then on "Network", then "network information"
         - You will be able to read the ip address of the camera. Report it in `cameras_config.json`
 - You are done with the Reolink app
 
