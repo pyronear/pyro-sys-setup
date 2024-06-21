@@ -1,7 +1,37 @@
 # pyro-sys-setup
-Set-up and manage Pyronear hardware fire detection systems.
+pyro-sys-setup is used to configure Pyronear hardware fire detection systems. In particular, you can configure IP cameras (currently from Reolink) and a raspberry pi, by following the tutorial below.
 
-## Setup
+## Cameras Setup
+### 1. Connecting and powering up cameras on local network
+- You will need factory-set Reolink cameras (either cameras are new/refurbished, so you don't need to do anything, or follow [this tutorial](https://support.reolink.com/hc/en-us/articles/360003516613-How-to-Reset-Bullet-or-Dome-Cameras/) to reset them to factory settings).
+- These cameras are powered by POE. Connect the cameras via Ethernet to a POE switch connected to your local network (or directly to your computer).
+
+### 2. Configuration requirements
+At this step, you will use the reolink application to define a user and password and retrieve the IP address for each camera, and you will report these details in the required configuration files described below : 
+
+*By default, files supposed to be available at the root of this repository, but will be able to prodvide a specific path to file at step 4 of this tutorial*
+
+- `.env` file as requested in [pyro-engine](https://github.com/pyronear/pyro-engine/tree/main?tab=readme-ov-file#full-docker-orchestration).
+   
+- `cameras_config.json` file. You can find an example at the root of this repository. The purpose of this json is to list all the IP addresses of cameras to be configured, and for each of them certain characteristics to be defined. 
+
+- 2.1 Choose a username & password, for sake of simplicity, it will be the same user and password used for each cameras, and 
+report these as CAM_USER and CAM_PWD in .env file
+
+- 2.2 Please follow the steps in [`REOLINK_APP_STEPS`](REOLINK_APP_STEPS.md) to set user, password ang get ip adresses with reolinkApp
+
+### 3. setting up cameras
+If you have followed previous steps correctly, you have an .env file and a cameras_config.json file fullfilled. 
+
+Now, from the root of this repository run : 
+*By default, the script is looking for .env and cameras_config in this repository but you can specify a path for each config file, use `python setup_reolink_cameras.py -h` for help*
+
+``` bash
+python setup_reolink_cameras.py
+```
+(MIGHT NEED PYTON REQUIREMENTS explanations and requirments.txt file to installed required libraries)
+
+## Raspberry pi Setup
 
 ### 1. Install raspberry pi os
 Please follow the steps in [`RPI_INSTALLATION`](RPI_INSTALLATION.md) to have a rapsberry pi properly running
