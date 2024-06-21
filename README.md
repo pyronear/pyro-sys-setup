@@ -15,21 +15,23 @@ At this step, you will use the reolink application to define a user and password
    
 - `cameras_config.json` file. You can find an example at the root of this repository. The purpose of this json is to list all the IP addresses of cameras to be configured, and for each of them certain characteristics to be defined. 
 
-- 2.1 Choose a username & password, for sake of simplicity, it will be the same user and password used for each cameras, and 
+
+**2.1** Choose a username & password, for sake of simplicity, it will be the same user and password used for each cameras, and 
 report these as CAM_USER and CAM_PWD in .env file
 
-- 2.2 Please follow the steps in [`REOLINK_APP_STEPS`](REOLINK_APP_STEPS.md) to set user, password ang get ip adresses with reolinkApp
+**2.2** Please follow the steps in [`REOLINK_APP_STEPS`](REOLINK_APP_STEPS.md) to set user, password ang get ip adresses with reolinkApp
 
-### 3. setting up cameras
+### 3. Setting up cameras
 If you have followed previous steps correctly, you have an .env file and a cameras_config.json file fullfilled. 
 
-3.1 install required librairies in running the following : 
+**3.1** install required librairies in running the following : 
 
 ```
 pip install requirements.txt
 ```
 
-3.2 Now, from the root of this repository run : 
+**3.2** Now, from the root of this repository run:
+ 
 *By default, the script is looking for .env and cameras_config in this repository but you can specify a path for each config file, use `python setup_reolink_cameras.py -h` for help*
 
 ``` bash
