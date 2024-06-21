@@ -1,0 +1,35 @@
+{
+    "192.168.1.39": {
+        "type": "static",
+        "LocalLink": {
+            "type": "Static",
+            "static": {
+                "ip": "169.254.40.1",
+                "mask": "255.255.0.0",
+                "gateway": "169.254.1.1"
+            }
+        }
+    },
+    "192.168.1.137": {
+        "type": "static",
+        "LocalLink": {
+            "type": "Static",
+            "static": {
+                "ip": "169.254.40.2",
+                "mask": "255.255.0.0",
+                "gateway": "169.254.1.1"
+            }
+        }
+    },
+    "192.168.1.167": {
+        "type": "ptz",
+        "LocalLink": {
+            "type": "Static",
+            "static": {
+                "ip": "169.254.40.2",
+                "mask": "255.255.0.0",
+                "gateway": "169.254.1.1"
+            }
+        }
+    }
+}
