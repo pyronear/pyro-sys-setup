@@ -65,7 +65,7 @@ done
 echo "=== PYRO ENGINE setup steps ==="
 
 # clone pyro-engine main branch
-ssh pi@$PI_HOST sudo git clone --branch main https://github.com/pyronear/pyro-engine.git
+ssh pi@$PI_HOST git clone --branch main https://github.com/pyronear/pyro-engine.git
 
 # Transfer env file & move it to pyro-engine folder
 scp $PYROENGINE_ENV_FILE_PATH pi@$PI_HOST:.env
