@@ -27,7 +27,7 @@ If you have followed previous steps correctly, you have an .env file and a camer
 **3.1** install required librairies in running the following : 
 
 ```
-pip install requirements.txt
+pip install -r requirements.txt
 ```
 
 **3.2** Now, from the root of this repository run:
