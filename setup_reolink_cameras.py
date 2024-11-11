@@ -305,6 +305,26 @@ class ReolinkCamera:
 
         self._handle_response(response, "Local link is now set")
 
+
+    def set_default_pos(self, idx: int = 10):
+        """
+        Save camera default position
+        """
+
+        url = self._build_url("SetPtzPreset")
+        name = f"pos{idx}"
+        data = [
+            {
+                "cmd": "SetPtzPreset",
+                "action": 0,  # The action code for setting data
+                "param": {"PtzPreset": {"channel": 0, "enable": 1, "id": idx, "name": name}},
+            }
+        ]
+        response = requests.post(url, json=data, verify=False)  # nosec: B501
+        # Utilizing the shared response handling method
+        self._handle_response(response, f"Preset {name} set successfully.")
+
+
     def setup(self):
         """
         Sets up Reolink camera to target speficic configuration
@@ -314,6 +334,7 @@ class ReolinkCamera:
         self.set_ai_config()
         self.set_ai_alarm()
         self.set_net_port()
+        self.set_default_pos()
         self.set_local_link()
 
 
