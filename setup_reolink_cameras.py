@@ -87,7 +87,7 @@ class ReolinkCamera:
 
         url = self._build_url(command)
 
-        response = requests.post(url, verify=False)
+        response = requests.post(url, verify=False, timeout=10)
 
         logging.info(f"{response.json()}")
 
@@ -109,7 +109,7 @@ class ReolinkCamera:
                 "enable": 0}, "watermark": 0
         }}}]
 
-        response = requests.post(url, json=data, verify=False)
+        response = requests.post(url, json=data, verify=False, timeout=10)
 
         self._handle_response(
             response=response, success_message="OSD parameters are now set")
@@ -129,7 +129,7 @@ class ReolinkCamera:
                 "ai_type": "vehicle"}
         }]
 
-        response = requests.post(url, json=data, verify=False)
+        response = requests.post(url, json=data, verify=False, timeout=10)
 
         self._handle_response(response, "Get ai alarm info sucessfully")
 
@@ -151,7 +151,7 @@ class ReolinkCamera:
                 }
             }]
 
-            response = requests.post(url, json=data, verify=False)
+            response = requests.post(url, json=data, verify=False, timeout=10)
 
             self._handle_response(response,
                                   f"deactivate ai type {ai_type} successfully")
@@ -169,7 +169,7 @@ class ReolinkCamera:
                     "channel": 0}
                 }]
 
-        response = requests.post(url, json=data, verify=False)
+        response = requests.post(url, json=data, verify=False, timeout=10)
 
         logging.info(f"{response.json()}")
 
@@ -201,7 +201,7 @@ class ReolinkCamera:
                     "channel": 0}
                 }]
 
-        response = requests.post(url, json=data, verify=False)
+        response = requests.post(url, json=data, verify=False, timeout=10)
 
         self._handle_response(response, "Ai Config is now set")
 
@@ -238,7 +238,7 @@ class ReolinkCamera:
                 "action": 1
                 }]
 
-        response = requests.post(url, json=data, verify=False)
+        response = requests.post(url, json=data, verify=False, timeout=10)
 
     def set_net_port(self):
         """
@@ -263,7 +263,7 @@ class ReolinkCamera:
                     }}
                 }]
 
-        response = requests.post(url, json=data, verify=False)
+        response = requests.post(url, json=data, verify=False, timeout=10)
 
         self._handle_response(response, "Network ports are now set")
 
@@ -280,7 +280,7 @@ class ReolinkCamera:
                 "action": 1
                 }]
 
-        response = requests.post(url, json=data, verify=False)
+        response = requests.post(url, json=data, verify=False, timeout=10)
 
         print(response.status_code)
         print(response.json())
@@ -301,7 +301,7 @@ class ReolinkCamera:
                 "param": {"LocalLink": self.locallink
                           }}]
 
-        response = requests.post(url, json=data, verify=False)
+        response = requests.post(url, json=data, verify=False, timeout=10)
 
         self._handle_response(response, "Local link is now set")
 
@@ -320,7 +320,7 @@ class ReolinkCamera:
                 "param": {"PtzPreset": {"channel": 0, "enable": 1, "id": idx, "name": name}},
             }
         ]
-        response = requests.post(url, json=data, verify=False)  # nosec: B501
+        response = requests.post(url, json=data, verify=False, timeout=10)  # nosec: B501
         # Utilizing the shared response handling method
         self._handle_response(response, f"Preset {name} set successfully.")
 
@@ -329,13 +329,19 @@ class ReolinkCamera:
         """
         Sets up Reolink camera to target speficic configuration
         """
-        logging.info(f"{self.ip_address}")
-        self.set_osd()
-        self.set_ai_config()
-        self.set_ai_alarm()
-        self.set_net_port()
-        self.set_default_pos()
-        self.set_local_link()
+        logging.info(f"Setting up camera {self.ip_address}")
+        try:
+            self.set_osd()
+            self.set_ai_config()
+            self.set_ai_alarm()
+            self.set_net_port()
+            self.set_default_pos()
+            self.set_local_link()
+            logging.info(f"Camera {self.ip_address} configured successfully")
+        except requests.exceptions.ConnectionError:
+            logging.error(f"Camera {self.ip_address} is unreachable (connection refused)")
+        except requests.exceptions.Timeout:
+            logging.error(f"Camera {self.ip_address} timed out — check IP address and network")
 
 
 def main(args):
