@@ -1,0 +1,11 @@
+git+https://github.com/pyronear/pyro-engine.git@develop#subdirectory=pyro_camera_api/client
+stitching
+matplotlib
+Pillow
+numpy
+pandas
+opencv-python
+streamlit
+streamlit-image-coordinates
+folium
+streamlit-folium
