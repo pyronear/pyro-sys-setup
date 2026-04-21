@@ -8,6 +8,7 @@
         - Access settings clicking the wheel near cameras name
         - Click then on "Network", then "network information"
         - You will be able to read the ip address of the camera. Report it in `cameras_config.json`
+    - Activate Http and https in advanced server settings to be able to run camera config script (not always activaed with default params)
 - You are done with the Reolink app
 
 - Complete `cameras_config.json`

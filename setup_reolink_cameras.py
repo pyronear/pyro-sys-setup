@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import time
 from typing import List, Optional
 
 import requests
@@ -252,6 +253,8 @@ class ReolinkCamera:
             "cmd": command,
                 "param": {
                     "NetPort": {
+                        "rtmpEnable": 1,
+                        "rtmpPort": 1935,
                         "httpEnable": 1,
                         "httpPort": 80,
                         "httpsEnable": 1,
@@ -305,7 +308,6 @@ class ReolinkCamera:
 
         self._handle_response(response, "Local link is now set")
 
-
     def set_default_pos(self, idx: int = 10):
         """
         Save camera default position
@@ -320,10 +322,10 @@ class ReolinkCamera:
                 "param": {"PtzPreset": {"channel": 0, "enable": 1, "id": idx, "name": name}},
             }
         ]
-        response = requests.post(url, json=data, verify=False, timeout=10)  # nosec: B501
+        response = requests.post(
+            url, json=data, verify=False, timeout=10)  # nosec: B501
         # Utilizing the shared response handling method
         self._handle_response(response, f"Preset {name} set successfully.")
-
 
     def setup(self):
         """
@@ -335,13 +337,18 @@ class ReolinkCamera:
             self.set_ai_config()
             self.set_ai_alarm()
             self.set_net_port()
+            time.sleep(5)  #
+            logging.info(
+                f"sleep for 5s due to camera restarting network stack after port change")
             self.set_default_pos()
             self.set_local_link()
             logging.info(f"Camera {self.ip_address} configured successfully")
         except requests.exceptions.ConnectionError:
-            logging.error(f"Camera {self.ip_address} is unreachable (connection refused)")
+            logging.error(
+                f"Camera {self.ip_address} is unreachable (connection refused)")
         except requests.exceptions.Timeout:
-            logging.error(f"Camera {self.ip_address} timed out — check IP address and network")
+            logging.error(
+                f"Camera {self.ip_address} timed out — check IP address and network")
 
 
 def main(args):
