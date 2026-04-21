@@ -1,0 +1,17 @@
+[project]
+name = "pyronear-cam-calibration"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pyro-camera-api-client @ git+https://github.com/pyronear/pyro-engine.git@develop#subdirectory=pyro_camera_api/client",
+    "stitching",
+    "matplotlib",
+    "Pillow",
+    "numpy",
+    "pandas",
+    "opencv-python",
+    "streamlit",
+    "streamlit-image-coordinates",
+    "folium",
+    "streamlit-folium",
+]
