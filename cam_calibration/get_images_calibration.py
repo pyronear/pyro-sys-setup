@@ -24,13 +24,18 @@ from pyro_camera_api_client.client import PyroCameraAPIClient
 PI_IP = "192.168.255.62"
 API_BASE = f"http://{PI_IP}:8081"
 
-INITIAL_PRESET = 20       # preset to go to before starting the sweep
-FIRST_SAVE_POSE = 30      # pose index for the first saved image
-STEP_DEGREES = 20         # degrees between captures
-TOTAL_DEGREES = 340       # total rotation — keep below 360 to avoid loop-closure issues in stitching
-DIRECTION = "Right"       # "Left" or "Right"
-SPEED_LEVEL = 3           # 1..5
-SLEEP_AFTER_MOVE = 2      # seconds to wait after each move — avoids motion blur in captured frames
+INITIAL_PRESET = 10              # preset to go to before tilting (tune on page 1)
+INITIAL_PRESET_SPEED = 64        # fast travel to the initial preset
+TILT_DOWN_FAST_DURATION = 10     # coarse tilt down from the preset, in seconds
+TILT_DOWN_FAST_SPEED = 64
+TILT_DOWN_FINE_DURATION = 3      # fine tilt down to land on the sweep starting angle
+TILT_DOWN_FINE_SPEED = 2
+FIRST_SAVE_POSE = 30             # pose index for the first saved image
+STEP_DEGREES = 22.5              # degrees per move — 45°/2; selecting every other capture gives 45° spacing (9.2° overlap with FOV 54.2°)
+TOTAL_DEGREES = 382.5            # 17 steps → 18 captures, overshoots 360° by one step for loop-closure overlap calibration
+DIRECTION = "Right"              # "Left" or "Right"
+SPEED_LEVEL = 3                  # 1..5
+SLEEP_AFTER_MOVE = 2             # seconds to wait after each move — avoids motion blur in captured frames
 IMAGE_WIDTH = 1280
 
 
@@ -82,9 +87,21 @@ def sweep_ptz(client: PyroCameraAPIClient, pi_ip: str, cam: dict):
     except Exception as e:
         print(f"  warning: stop_patrol failed ({e})")
 
-    print(f"  moving to initial preset {INITIAL_PRESET}")
-    client.move_camera(cam_ip, pose_id=INITIAL_PRESET, speed=SPEED_LEVEL)
-    time.sleep(2)
+    print(f"  Moving to position {INITIAL_PRESET} at speed {INITIAL_PRESET_SPEED}.")
+    client.goto_preset(cam_ip, pose_id=INITIAL_PRESET, speed=INITIAL_PRESET_SPEED)
+    time.sleep(3)
+
+    print(f"  ⬇️ Moving down for {TILT_DOWN_FAST_DURATION} seconds at speed {TILT_DOWN_FAST_SPEED}.")
+    client.move_for_duration(cam_ip, direction="Down",
+                             duration=TILT_DOWN_FAST_DURATION,
+                             speed=TILT_DOWN_FAST_SPEED)
+    time.sleep(1)
+
+    print(f"  ⬇️ Moving down for {TILT_DOWN_FINE_DURATION} seconds at speed {TILT_DOWN_FINE_SPEED}.")
+    client.move_for_duration(cam_ip, direction="Down",
+                             duration=TILT_DOWN_FINE_DURATION,
+                             speed=TILT_DOWN_FINE_SPEED)
+    time.sleep(1)
 
     current_pose = FIRST_SAVE_POSE
 
@@ -93,13 +110,12 @@ def sweep_ptz(client: PyroCameraAPIClient, pi_ip: str, cam: dict):
     except Exception as e:
         print(f"  warning: set_preset failed at pose {current_pose} ({e})")
 
-    print(f"  capturing initial frame (pose {current_pose})")
+    print(f"  saving first pose ({current_pose})")
     capture_and_save(client, cam_ip, out_dir, current_pose)
 
     for i in range(steps):
-        print(f"  step {i+1}/{steps} — rotating {STEP_DEGREES}° {DIRECTION}")
-        info = client.move_camera(cam_ip, direction=DIRECTION,
-                                  degrees=STEP_DEGREES, speed=SPEED_LEVEL)
+        print(f"  step {i+1}/{steps} — rotating {STEP_DEGREES}° {DIRECTION}, saving pose {current_pose + 1}")
+        info = client.move_by_degrees(cam_ip, direction=DIRECTION, degrees=STEP_DEGREES)
         print(f"    {info}")
 
         if SLEEP_AFTER_MOVE:

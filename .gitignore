@@ -149,3 +149,7 @@ credentials.json
 
 # .env file
 *.env
+
+# Camera calibration runtime outputs (JPEGs, panoramas, calibration.csv, selected_poses.json with real station coordinates)
+captures/
+cam_calibration/captures/

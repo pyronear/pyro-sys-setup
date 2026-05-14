@@ -21,6 +21,8 @@ st.title("Camera azimuth calibration")
 st.markdown("""
 Use the pages in the sidebar to go through the calibration workflow:
 
-1. **Capture** — connect to the camera API, sweep PTZ cameras, compute panoramas
-2. **Calibration** — click a reference landmark on a pose image, enter its azimuth, export `calibration.csv`
+1. **Single capture** — preview each camera, manually fine-tune pose 10 (sweep start)
+2. **Sweep & panorama** — sweep all PTZ cameras and stitch panoramas
+3. **Calibration** — click reference landmarks on the panorama, export `calibration.csv`
+4. **Pose selection** — pick poses to use, push them as presets, export `selected_poses.json`
 """)

@@ -33,7 +33,7 @@ COLS_PER_ROW     = 5
 CAM_COLORS       = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#a65628"]
 
 st.set_page_config(page_title="Pose Selection", layout="wide")
-st.title("3 · Pose selection")
+st.title("4 · Pose selection")
 
 pi_ip = st.session_state.get("pi_ip", "192.168.255.62")
 st.sidebar.markdown(f"**Pi IP:** `{pi_ip}`")

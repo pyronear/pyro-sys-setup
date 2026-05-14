@@ -46,7 +46,7 @@ SLOT_COLORS = {
 }
 
 st.set_page_config(page_title="Calibration", layout="wide")
-st.title("2 · Azimuth calibration")
+st.title("3 · Azimuth calibration")
 
 pi_ip = st.session_state.get("pi_ip", "192.168.255.62")
 st.sidebar.markdown(f"**Pi IP:** `{pi_ip}`")
@@ -213,12 +213,13 @@ if not image_paths:
 
 # ── session state ─────────────────────────────────────────────────────────────
 # Each slot: None | {"pose": str, "img_x": int, "img_y": int, "pano_x": float}
-for key in SLOTS:
-    if key not in st.session_state:
+# Reset everything when the selected camera changes (also handles first load).
+if st.session_state.get("cam_selected") != cam:
+    for key in SLOTS:
         st.session_state[key] = None
-for key, default in [("pose_idx", 0), ("click_mode", "overlap_start")]:
-    if key not in st.session_state:
-        st.session_state[key] = default
+    st.session_state.pose_idx = 0
+    st.session_state.click_mode = "overlap_start"
+    st.session_state["cam_selected"] = cam
 
 # ── compute matches ───────────────────────────────────────────────────────────
 offsets_path            = base / cam / "pose_offsets.json"

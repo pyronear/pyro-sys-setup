@@ -1,7 +1,12 @@
 """
-Page 1 — Capture images and compute panoramas.
+Page 2 — Capture full sweep & compute panorama.
+
+Use this page to:
+  • Sweep all PTZ cameras in parallel and stitch their panoramas
+  • Run sweep / panorama per camera manually
 """
 
+import concurrent.futures
 from pathlib import Path
 import sys
 import time
@@ -18,10 +23,10 @@ from get_images_calibration import sweep_ptz, capture_static
 # ── config ───────────────────────────────────────────────────────────────────
 CAPTURES_DIR = Path(__file__).parent.parent / "captures"
 DEFAULT_FOV   = 54.2
-DEFAULT_STEP  = 20.0
+DEFAULT_STEP  = 22.5
 
-st.set_page_config(page_title="Capture", layout="wide")
-st.title("1 · Capture & Panorama")
+st.set_page_config(page_title="Sweep & panorama", layout="wide")
+st.title("2 · Sweep & panorama")
 
 pi_ip = st.session_state.get("pi_ip", "192.168.255.62")
 st.sidebar.markdown(f"**Pi IP:** `{pi_ip}`")
@@ -49,10 +54,58 @@ if not cameras:
 
 st.success(f"Found {len(cameras)} camera(s)")
 
-# ── per-camera cards ──────────────────────────────────────────────────────────
 fov_deg  = st.sidebar.number_input("Camera FOV (°)", value=DEFAULT_FOV, step=0.1, format="%.1f")
 step_deg = st.sidebar.number_input("PTZ step (°)",   value=DEFAULT_STEP, step=1.0, format="%.1f")
 
+# ── batch action: sweep + panorama in parallel ────────────────────────────────
+if st.button("🎬 Sweep + panorama — all cameras (parallel)",
+             width="stretch", type="primary"):
+    def _run_one(cam):
+        cam_ip = cam["camera_id"]
+        cam_type = cam.get("type", "static")
+        pose_id = int(st.session_state.get(f"pose_id_{cam_ip}", 30))
+        c = PyroCameraAPIClient(f"http://{pi_ip}:8081", timeout=180.0)
+        try:
+            c.start_stream(cam_ip)
+            time.sleep(2)
+            if cam_type == "ptz":
+                c.set_preset(cam_ip, idx=pose_id)
+                sweep_ptz(c, pi_ip, cam)
+                folder = CAPTURES_DIR / pi_ip / cam_ip / "images"
+                process_camera(folder, fov_deg, step_deg)
+            else:
+                capture_static(c, pi_ip, cam)
+        finally:
+            try:
+                c.stop_stream()
+            except Exception:
+                pass
+
+    with st.status("Sweep + panorama on all cameras in parallel…", expanded=True) as status:
+        st.write("Stopping patrol on all cameras…")
+        patrol_client = PyroCameraAPIClient(f"http://{pi_ip}:8081", timeout=15.0)
+        for cam in cameras:
+            cam_ip = cam["camera_id"]
+            try:
+                patrol_client.stop_patrol(cam_ip)
+                st.write(f"  ✓ patrol stopped on {cam_ip}")
+            except Exception as e:
+                st.write(f"  ⚠ stop_patrol {cam_ip}: {e}")
+        time.sleep(2)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, len(cameras))) as ex:
+            futures = {ex.submit(_run_one, cam): cam for cam in cameras}
+            for fut in concurrent.futures.as_completed(futures):
+                cam = futures[fut]
+                try:
+                    fut.result()
+                    st.write(f"  ✓ {cam['camera_id']}")
+                except Exception as e:
+                    st.write(f"  ✗ {cam['camera_id']} — {e}")
+        status.update(label="Sweep + panorama complete!", state="complete")
+    st.rerun()
+
+# ── per-camera cards ──────────────────────────────────────────────────────────
 for cam in cameras:
     cam_ip   = cam["camera_id"]
     cam_name = cam.get("name", cam_ip)
@@ -62,7 +115,10 @@ for cam in cameras:
 
     n_images = len(list(out_dir.glob("*.jpg"))) if out_dir.exists() else 0
 
-    with st.expander(f"{'📷' if cam_type == 'static' else '🔄'} **{cam_name}** — `{cam_ip}` [{cam_type}]  ·  {n_images} images captured", expanded=True):
+    with st.expander(
+        f"{'📷' if cam_type == 'static' else '🔄'} **{cam_name}** — `{cam_ip}` [{cam_type}]  ·  {n_images} images captured",
+        expanded=True,
+    ):
         col_info, col_actions = st.columns([2, 1])
 
         with col_info:
@@ -81,16 +137,16 @@ for cam in cameras:
             pose_id = st.number_input("Initial pose ID", value=30, step=1,
                                       key=f"pose_id_{cam_ip}")
 
-            # ── capture ───────────────────────────────────────────────────
+            # ── capture (sweep) ───────────────────────────────────────────
             if st.button("Capture images", key=f"cap_{cam_ip}", width="stretch"):
                 with st.status(f"Capturing {cam_name}…", expanded=True) as status:
                     try:
                         st.write("Starting stream…")
                         client.start_stream(cam_ip)
                         time.sleep(2)
-                        st.write(f"Setting preset {pose_id}…")
-                        client.set_preset(cam_ip, idx=int(pose_id))
                         if cam_type == "ptz":
+                            st.write(f"Setting preset {pose_id}…")
+                            client.set_preset(cam_ip, idx=int(pose_id))
                             sweep_ptz(client, pi_ip, cam)
                         else:
                             capture_static(client, pi_ip, cam)
