@@ -68,12 +68,18 @@ log = logging.getLogger("provision")
 
 BAICHUAN_PORT = 9000  # TCP port the Reolink Baichuan protocol listens on
 HTTPS_READY_TIMEOUT = 20  # seconds to wait for the HTTPS server after enabling it
+BAICHUAN_LOGIN_TIMEOUT = 12  # per-attempt cap (the lib's own retry can otherwise hang ~30s)
+BAICHUAN_RETRIES = 3  # transient login retries (just-booted cams often fail the first handshake)
 
 
 @dataclass
 class Camera:
     ip: str
     initialized: bool  # True if it already has a non-empty admin password
+
+
+def _ip_key(ip: str) -> tuple[int, ...]:
+    return tuple(int(o) for o in ip.split("."))
 
 
 # --------------------------------------------------------------------------- #
@@ -90,30 +96,44 @@ def detect_local_subnet() -> ipaddress.IPv4Network:
     return ipaddress.IPv4Network(f"{local_ip}/24", strict=False)
 
 
-async def _port_open(ip: str, port: int, timeout: float) -> bool:
-    try:
-        fut = asyncio.open_connection(ip, port)
-        reader, writer = await asyncio.wait_for(fut, timeout=timeout)
-        writer.close()
+async def _port_open(ip: str, port: int, timeout: float, sem: asyncio.Semaphore) -> bool:
+    async with sem:  # cap concurrency so slow cams aren't lost in a 254-host stampede
         try:
-            await writer.wait_closed()
-        except Exception:
-            pass
-        return True
-    except (OSError, asyncio.TimeoutError):
-        return False
+            fut = asyncio.open_connection(ip, port)
+            reader, writer = await asyncio.wait_for(fut, timeout=timeout)
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+            return True
+        except (OSError, asyncio.TimeoutError):
+            return False
 
 
-async def discover(network: ipaddress.IPv4Network, timeout: float = 1.0) -> list[str]:
-    """Scan the subnet for hosts with the Baichuan port open (Reolink cameras)."""
+async def discover(network: ipaddress.IPv4Network, timeout: float = 1.5,
+                   concurrency: int = 100) -> list[str]:
+    """Scan the subnet for hosts with the Baichuan port open (Reolink cameras).
+
+    Done in two passes: a fast first sweep, then a slower retry over the hosts
+    that didn't answer, so a camera that was still booting on the first pass is
+    still picked up.
+    """
     log.info("Discovering Reolink cameras on %s (TCP %d)...", network, BAICHUAN_PORT)
     hosts = [str(h) for h in network.hosts()]
-    results = await asyncio.gather(
-        *(_port_open(ip, BAICHUAN_PORT, timeout) for ip in hosts)
-    )
-    found = [ip for ip, ok in zip(hosts, results) if ok]
-    log.info("Found %d candidate camera(s): %s", len(found), ", ".join(found) or "none")
-    return found
+    sem = asyncio.Semaphore(concurrency)
+
+    async def sweep(host_list: list[str], t: float) -> set[str]:
+        results = await asyncio.gather(*(_port_open(ip, BAICHUAN_PORT, t, sem) for ip in host_list))
+        return {ip for ip, ok in zip(host_list, results) if ok}
+
+    found = await sweep(hosts, timeout)
+    missing = [h for h in hosts if h not in found]
+    found |= await sweep(missing, timeout * 2)  # slower retry catches just-booted cams
+
+    ordered = sorted(found, key=_ip_key)
+    log.info("Found %d candidate camera(s): %s", len(ordered), ", ".join(ordered) or "none")
+    return ordered
 
 
 # --------------------------------------------------------------------------- #
@@ -127,24 +147,21 @@ async def detect_state(ip: str, admin_password: str) -> Camera | None:
     configured admin password.
     """
     # Fresh camera: empty password is accepted.
-    host = Host(ip, "admin", "")
     try:
-        await host.baichuan.login()
+        host = await _login_baichuan(ip, "")
         await _safe_logout(host)
         log.info("[%s] factory-fresh (Baichuan accepts empty password)", ip)
         return Camera(ip, initialized=False)
     except CredentialsInvalidError:
         pass  # already initialized, fall through
-    except Exception as err:  # ReolinkError, or transport errors when host is down
+    except Exception as err:  # transport errors after retries — treat as unreachable
         log.error("[%s] Baichuan connection failed: %s", ip, err)
         return None
-    finally:
-        await _safe_logout(host)
 
     # Initialized camera: confirm the configured password works.
-    host = Host(ip, "admin", admin_password)
     try:
-        await host.baichuan.login()
+        host = await _login_baichuan(ip, admin_password)
+        await _safe_logout(host)
         log.info("[%s] already initialized (configured admin password accepted)", ip)
         return Camera(ip, initialized=True)
     except CredentialsInvalidError:
@@ -153,18 +170,19 @@ async def detect_state(ip: str, admin_password: str) -> Camera | None:
             "— skipping (factory reset the camera to re-provision)", ip
         )
         return None
-    except Exception as err:  # ReolinkError, or transport errors when host is down
+    except Exception as err:  # transport errors after retries — treat as unreachable
         log.error("[%s] Baichuan connection failed: %s", ip, err)
         return None
-    finally:
-        await _safe_logout(host)
 
 
 async def enable_http_https(ip: str, password: str) -> bool:
     """Enable the HTTP and HTTPS ports over Baichuan. Idempotent."""
-    host = Host(ip, "admin", password)
     try:
-        await host.baichuan.login()
+        host = await _login_baichuan(ip, password)
+    except Exception as err:
+        log.error("[%s] failed to connect for port config: %s", ip, err)
+        return False
+    try:
         ports = await host.baichuan.get_ports()
         for name, port_type in (("http", PortType.http), ("https", PortType.https)):
             if ports.get(name, {}).get("enable") == 1:
@@ -186,6 +204,34 @@ async def _safe_logout(host: Host) -> None:
             await fn()
         except Exception:
             pass
+
+
+async def _login_baichuan(ip: str, password: str) -> Host:
+    """Return a logged-in Host over Baichuan, retrying transient failures.
+
+    Just-booted or busy cameras occasionally fail the first TCP handshake, which
+    sends reolink_aio down a UDP fallback that can raise transient transport
+    errors (e.g. 'NoneType has no attribute sendto') and hang ~30s. We bound each
+    attempt and retry with a fresh Host. Invalid credentials are raised at once
+    (no retry), so the caller can distinguish "wrong password" from "unreachable".
+    """
+    last_err: Exception | None = None
+    for attempt in range(1, BAICHUAN_RETRIES + 1):
+        host = Host(ip, "admin", password)
+        try:
+            await asyncio.wait_for(host.baichuan.login(), timeout=BAICHUAN_LOGIN_TIMEOUT)
+            return host
+        except CredentialsInvalidError:
+            await _safe_logout(host)
+            raise
+        except (Exception, asyncio.TimeoutError) as err:
+            last_err = err
+            await _safe_logout(host)
+            if attempt < BAICHUAN_RETRIES:
+                log.info("[%s] Baichuan login attempt %d/%d failed (%s), retrying...",
+                         ip, attempt, BAICHUAN_RETRIES, type(err).__name__)
+                await asyncio.sleep(2)
+    raise last_err  # type: ignore[misc]
 
 
 # --------------------------------------------------------------------------- #
@@ -285,10 +331,6 @@ async def provision_one(ip: str, admin_password: str) -> bool:
         log.info("[%s] password step skipped (already initialized)", ip)
 
     return verify_https(ip, "admin", admin_password)
-
-
-def _ip_key(ip: str) -> tuple[int, ...]:
-    return tuple(int(o) for o in ip.split("."))
 
 
 def build_cam_config(ready_ips: list[str], provision_cfg: dict) -> dict:
