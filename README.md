@@ -6,33 +6,44 @@ pyro-sys-setup is used to configure Pyronear hardware fire detection systems. In
 - You will need factory-set Reolink cameras (either cameras are new/refurbished, so you don't need to do anything, or follow [this tutorial](https://support.reolink.com/hc/en-us/articles/360003516613-How-to-Reset-Bullet-or-Dome-Cameras/) to reset them to factory settings).
 - These cameras are powered by POE. Connect the cameras via Ethernet to a POE switch connected to your local network (or directly to your computer).
 
-### 2. Configuration requirements
-At this step, you will use the reolink application to define a user and password and retrieve the IP address for each camera, and you will report these details in the required configuration files described below : 
+### 2. Automated provisioning (recommended)
 
-*By default, files supposed to be available at the root of this repository, but will be able to prodvide a specific path to file at step 4 of this tutorial*
+`provision_reolink.py` replaces the manual Reolink-app steps entirely: **it discovers factory-fresh Reolink cameras on your LAN over the Baichuan protocol, sets the admin password and enables HTTP/HTTPS without the app, assigns each camera a static IP, then runs the standard setup script.**
 
-- `.env` file as requested in [pyro-engine](https://github.com/pyronear/pyro-engine/tree/main?tab=readme-ov-file#full-docker-orchestration).
-   
-- `cameras_config.json` file. You can find an example at the root of this repository. The purpose of this json is to list all the IP addresses of cameras to be configured, and for each of them certain characteristics to be defined. 
+**2.1** Fill in two files at the root of the repository:
 
+- `.env` — set `CAM_USER` and `CAM_PWD` (the admin username/password to apply to every camera). Same file requested by [pyro-engine](https://github.com/pyronear/pyro-engine/tree/main?tab=readme-ov-file#full-docker-orchestration).
+- `provision_config.json` — the intended fleet: the pool of target static IPs to hand out (one per camera), plus the `type` (`ptz`/`static`), `mask` and `gateway` applied to all. An example is provided at the root of the repository.
 
-**2.1** Choose a username & password, for sake of simplicity, it will be the same user and password used for each cameras, and 
-report these as CAM_USER and CAM_PWD in .env file
+**2.2** From the root of the repository, run :
 
-**2.2** Please follow the steps in [`REOLINK_APP_STEPS`](REOLINK_APP_STEPS.md) to set user, password ang get ip adresses with reolinkApp
+```bash
+uv run provision_reolink.py --run-setup
+```
 
-### 3. Setting up cameras
-If you have followed previous steps correctly, you have an .env file and a cameras_config.json file fullfilled. 
+That's it. The script auto-detects your subnet, provisions every fresh camera it finds, generates `cameras_config.json`, and configures each camera. It is **idempotent** — safe to re-run; already-initialized cameras are detected and skipped, and a camera already on a target IP keeps it.
 
-**3.1** install required librairies in running the following : 
+*Useful flags: `--ip <ip ...>` to target specific cameras and skip discovery, `--subnet <cidr>` to scan a different network, omit `--run-setup` to generate `cameras_config.json` without configuring yet. Run `uv run provision_reolink.py -h` for the full list.*
+
+> Always re-run `provision_reolink.py` (not `setup_reolink_cameras.py` on its own) when adding cameras: it re-discovers the current IPs and regenerates `cameras_config.json` accordingly.
+
+### 3. Manual setup (alternative)
+
+If you prefer to provision cameras by hand with the Reolink app:
+
+**3.1** Choose a username & password (the same for every camera) and report them as `CAM_USER` and `CAM_PWD` in the `.env` file.
+
+**3.2** Follow the steps in [`REOLINK_APP_STEPS`](REOLINK_APP_STEPS.md) to set the user/password and get the IP addresses with the Reolink app, then fill in `cameras_config.json` (list each camera's IP and its characteristics; an example is at the root of the repository).
+
+**3.3** Install the required libraries:
 
 ```
 pip install -r requirements.txt
 ```
 
-**3.2** Now, from the root of this repository run:
- 
-*By default, the script is looking for .env and cameras_config in this repository but you can specify a path for each config file, use `python setup_reolink_cameras.py -h` for help*
+**3.4** Then, from the root of the repository, run:
+
+*By default, the script looks for `.env` and `cameras_config.json` in this repository, but you can specify a path for each; use `python setup_reolink_cameras.py -h` for help.*
 
 ``` bash
 python setup_reolink_cameras.py
