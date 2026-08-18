@@ -49,6 +49,39 @@ The panorama is assembled and two files are written:
 
 ---
 
+## Capture the sweep presets, straight and tilted up
+
+Once the sweep has saved its presets, `get_images_presets_up.py` revisits each of them
+and captures two frames — one at the preset angle, one after a short tilt up — plus one
+frame at every active patrol pose. The tilted frames give a second view of the horizon
+line, useful when the straight frame is dominated by foreground.
+
+```bash
+cd cam_calibration
+uv run python get_images_presets_up.py --pi-ip <VPN_IP>              # all cameras
+uv run python get_images_presets_up.py --pi-ip <VPN_IP> --cam <CAM_IP>
+uv run python get_images_presets_up.py --pi-ip <VPN_IP> --last-pose 49
+```
+
+Cameras are captured in parallel (one thread each), the patrol is stopped before the run
+and left stopped afterwards. Each file name embeds the capture time, so repeated runs
+never overwrite each other:
+
+```
+captures/<pi_ip>/<cam_ip>/
+├── images_sweep/pose_<N>_<YYYYmmddHHMMSS>.jpg    # at the preset
+├── images_up/pose_<N>_<YYYYmmddHHMMSS>.jpg       # after the tilt up
+├── images_patrol/pose_<N>_<YYYYmmddHHMMSS>.jpg   # active patrol poses
+└── manifest.csv                                  # image, camera, pose, kind, datetime
+```
+
+`--last-pose` defaults to the last preset implied by the sweep configuration
+(`FIRST_SAVE_POSE`, `STEP_DEGREES` and `TOTAL_DEGREES` in `get_images_calibration.py`);
+pass it explicitly for sites swept with a different setting. Timestamps are recorded in
+Europe/Paris time.
+
+---
+
 ## Step 2 — Calibrate azimuths (Streamlit app)
 
 ```bash
@@ -133,6 +166,7 @@ cam_calibration/
 ├── app.py                     # Streamlit entry point
 ├── compute_panorama.py        # PTZ sweep → panorama + pose_offsets.json
 ├── estimate_azimuth.py        # Estimate azimuth of a new image
+├── get_images_presets_up.py   # Capture each sweep preset straight + tilted up
 ├── requirements.txt
 ├── pages/
 │   ├── 1_Capture.py           # Streamlit page: trigger sweep, build panorama
