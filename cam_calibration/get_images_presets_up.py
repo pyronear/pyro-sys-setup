@@ -46,6 +46,9 @@ LAST_POSE = FIRST_POSE + int(TOTAL_DEGREES // STEP_DEGREES)
 PRESET_SPEED = 50
 FIRST_GOTO_SLEEP = 4             # the first preset can be a long travel
 SLEEP_AFTER_GOTO = 2             # the camera ignores PTZ ops sent too soon after ToPos
+# stop_patrol only signals the loop: it still finishes its current pose capture and
+# returns to the first pose before exiting. Wait for that move, or it fights the sweep.
+SLEEP_AFTER_STOP_PATROL = 10
 TILT_UP_DURATION = 2             # seconds
 TILT_UP_SPEED = 50
 SLEEP_AFTER_TILT = 1
@@ -83,9 +86,14 @@ def capture_and_save(client: PyroCameraAPIClient, camera_ip: str, out_dir: Path,
 def write_manifest(base: Path, manifest: list) -> None:
     if not manifest:
         return
-    with open(base / "manifest.csv", "w", newline="") as f:
+    # append: images are timestamped, so runs accumulate instead of overwriting
+    path = base / "manifest.csv"
+    is_new = not path.exists()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(manifest[0].keys()))
-        w.writeheader()
+        if is_new:
+            w.writeheader()
         w.writerows(manifest)
 
 
@@ -114,41 +122,48 @@ def run_camera(client: PyroCameraAPIClient, pi_ip: str, cam: dict,
     log("stopping patrol")
     try:
         client.stop_patrol(cam_ip)
-        time.sleep(2)
+        time.sleep(SLEEP_AFTER_STOP_PATROL)
     except Exception as e:
         log(f"warning: stop_patrol failed ({e})")
 
-    for pose in range(FIRST_POSE, last_pose + 1):
-        log(f"pose {pose} ({pose - FIRST_POSE + 1}/{last_pose - FIRST_POSE + 1})")
-        client.goto_preset(cam_ip, pose_id=pose, speed=PRESET_SPEED)
-        time.sleep(FIRST_GOTO_SLEEP if pose == FIRST_POSE else SLEEP_AFTER_GOTO)
-        # "images_sweep" and not "images": the latter is used by the pose setup
-        # app, the two sets of captures must not be mixed.
-        straight = capture_and_save(client, cam_ip, base / "images_sweep",
-                                    manifest, pose, "straight")
+    # finally: a failed PTZ call must not lose the manifest of what was captured
+    try:
+        for pose in range(FIRST_POSE, last_pose + 1):
+            log(f"pose {pose} ({pose - FIRST_POSE + 1}/{last_pose - FIRST_POSE + 1})")
+            client.goto_preset(cam_ip, pose_id=pose, speed=PRESET_SPEED)
+            time.sleep(FIRST_GOTO_SLEEP if pose == FIRST_POSE else SLEEP_AFTER_GOTO)
+            # "images_sweep" and not "images": the latter is used by the pose setup
+            # app, the two sets of captures must not be mixed.
+            straight = capture_and_save(client, cam_ip, base / "images_sweep",
+                                        manifest, pose, "straight")
 
-        # The camera silently ignores PTZ ops sent too soon after ToPos:
-        # verify the view actually changed, retry the tilt otherwise.
-        for attempt in range(1, 4):
-            log(f"  tilt Up {TILT_UP_DURATION}s @ speed {TILT_UP_SPEED}"
-                + (f" (retry {attempt})" if attempt > 1 else ""))
-            client.move_for_duration(cam_ip, direction="Up",
-                                     duration=TILT_UP_DURATION, speed=TILT_UP_SPEED)
-            time.sleep(SLEEP_AFTER_TILT)
-            up = capture_and_save(client, cam_ip, base / "images_up", manifest, pose, "up")
-            if frames_differ(straight, up):
-                break
-            log("  tilt had no effect (identical image), retrying…")
-        else:
-            log(f"  warning: the camera did not move for pose {pose} (up)")
+            # The camera silently ignores PTZ ops sent too soon after ToPos:
+            # verify the view actually changed, retry the tilt otherwise.
+            for attempt in range(1, 4):
+                log(f"  tilt Up {TILT_UP_DURATION}s @ speed {TILT_UP_SPEED}"
+                    + (f" (retry {attempt})" if attempt > 1 else ""))
+                client.move_for_duration(cam_ip, direction="Up",
+                                         duration=TILT_UP_DURATION, speed=TILT_UP_SPEED)
+                time.sleep(SLEEP_AFTER_TILT)
+                up = capture_and_save(client, cam_ip, base / "images_up",
+                                      manifest, pose, "up")
+                if frames_differ(straight, up):
+                    break
+                # identical frame: drop it, consumers must not see a rejected "up"
+                if up is not None and manifest and manifest[-1]["kind"] == "up":
+                    (base / manifest.pop()["image"]).unlink(missing_ok=True)
+                log("  tilt had no effect (identical image), retrying…")
+            else:
+                log(f"  warning: the camera did not move for pose {pose} (up)")
 
-    for pose in active_poses:
-        log(f"active pose {pose}")
-        client.goto_preset(cam_ip, pose_id=pose, speed=PRESET_SPEED)
-        time.sleep(ACTIVE_POSE_SLEEP)
-        capture_and_save(client, cam_ip, base / "images_patrol", manifest, pose, "patrol")
-
-    write_manifest(base, manifest)
+        for pose in active_poses:
+            log(f"active pose {pose}")
+            client.goto_preset(cam_ip, pose_id=pose, speed=PRESET_SPEED)
+            time.sleep(ACTIVE_POSE_SLEEP)
+            capture_and_save(client, cam_ip, base / "images_patrol",
+                             manifest, pose, "patrol")
+    finally:
+        write_manifest(base, manifest)
     log(f"done — {len(manifest)} timestamped captures in manifest.csv, patrol left stopped")
 
 
