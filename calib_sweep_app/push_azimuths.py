@@ -81,7 +81,7 @@ def main():
         if row["kind"] != "patrol" or not row["azimuth"]:
             continue
         pose = int(Path(row["image"]).stem.split("_")[1])
-        patrol[pose] = round(float(row["azimuth"]), 1)
+        patrol[pose] = round(float(row["azimuth"]), 1) % 360  # API wants [0, 360)
     if not patrol:
         raise SystemExit("no patrol row in azimuts.csv")
 
@@ -94,31 +94,34 @@ def main():
 
     print(f"{name} ({site}, {pi_ip}/{cam_ip}) — {'PUSH' if args.apply else 'dry-run'}\n")
     print(f"{'pose':>4} {'pose_id':>7} {'platform':>10} {'new':>8}")
+    log = cam_dir.parent.parent / "push_log.csv"
     log_rows = []
-    for pose, az in sorted(patrol.items()):
-        pid = mapping.get(pose)
-        if pid is None:
-            print(f"{pose:>4} {'?':>7}  no pose_id in host_vars — skipped")
-            continue
-        current = api(f"/poses/{pid}", token).get("azimuth")
-        print(f"{pose:>4} {pid:>7} {current!s:>10} {az:>8}")
-        if args.apply:
-            api(f"/poses/{pid}", token, method="PATCH", body={"azimuth": az})
-            log_rows.append({
-                "datetime": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
-                "site": site, "camera": name, "pi_ip": pi_ip, "cam_ip": cam_ip,
-                "pose": pose, "pose_id": pid, "old_azimuth": current, "new_azimuth": az,
-            })
-    if args.apply and log_rows:
-        log = cam_dir.parent.parent / "push_log.csv"
-        new_file = not log.is_file()
-        with open(log, "a", newline="") as fh:
-            w = csv.DictWriter(fh, fieldnames=list(log_rows[0].keys()))
-            if new_file:
-                w.writeheader()
-            w.writerows(log_rows)
-        print(f"\nvalues pushed — log: {log}")
-    elif not args.apply:
+    # finally: a failing pose must not cost the audit trail of the ones already pushed
+    try:
+        for pose, az in sorted(patrol.items()):
+            pid = mapping.get(pose)
+            if pid is None:
+                print(f"{pose:>4} {'?':>7}  no pose_id in host_vars — skipped")
+                continue
+            current = api(f"/poses/{pid}", token).get("azimuth")
+            print(f"{pose:>4} {pid:>7} {current!s:>10} {az:>8}")
+            if args.apply:
+                api(f"/poses/{pid}", token, method="PATCH", body={"azimuth": az})
+                log_rows.append({
+                    "datetime": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+                    "site": site, "camera": name, "pi_ip": pi_ip, "cam_ip": cam_ip,
+                    "pose": pose, "pose_id": pid, "old_azimuth": current, "new_azimuth": az,
+                })
+    finally:
+        if log_rows:
+            new_file = not log.is_file()
+            with open(log, "a", newline="") as fh:
+                w = csv.DictWriter(fh, fieldnames=list(log_rows[0].keys()))
+                if new_file:
+                    w.writeheader()
+                w.writerows(log_rows)
+            print(f"\nvalues pushed — log: {log}")
+    if not args.apply:
         print("\ndry-run — rerun with --apply to push")
 
 

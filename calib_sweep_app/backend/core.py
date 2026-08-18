@@ -26,9 +26,20 @@ MIN_INLIERS = 30
 CLAHE = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
 
 
+POSE_RE = re.compile(r"(pose_\d+)_20\d{12}\.")
+
+
 def list_images(folder: Path) -> list[str]:
-    return sorted(p.name for p in folder.glob("*.jpg")) + \
-           sorted(p.name for p in folder.glob("*.png"))
+    """Images of a single sweep: capture runs accumulate timestamped files in the
+    same folder, and chaining two runs of the same pose breaks the calibration,
+    so only the most recent capture of each pose is kept."""
+    names = sorted(p.name for p in folder.glob("*.jpg")) + \
+            sorted(p.name for p in folder.glob("*.png"))
+    latest: dict[str, str] = {}
+    for name in names:
+        m = POSE_RE.match(name)
+        latest[m.group(1) if m else name] = name  # sorted names: last = newest
+    return sorted(latest.values())
 
 
 def load_gray(fp: Path):
