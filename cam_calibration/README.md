@@ -80,6 +80,8 @@ captures/<pi_ip>/<cam_ip>/
 pass it explicitly for sites swept with a different setting. Timestamps are recorded in
 Europe/Paris time.
 
+These captures feed the sweep calibration app in [`../calib_sweep_app`](../calib_sweep_app/README.md).
+
 ---
 
 ## Step 2 — Calibrate azimuths (Streamlit app)
