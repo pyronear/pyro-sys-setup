@@ -93,20 +93,30 @@ if check_img and Path(check_img).exists():
 st.divider()
 st.subheader("Capture loop")
 
+from_presets = st.radio(
+    "Mode", ["Sweep", "Recapture"], horizontal=True,
+    help="Sweep: rotate by the step from the start pose and store each position "
+         "as a preset. Recapture: go to each existing preset and take a fresh "
+         "image, nothing moves by step and no preset is written.") == "Recapture"
+
 c1, c2, c3, c4 = st.columns(4)
 start_pose = c1.number_input("Start pose", value=20, step=1, min_value=1)
-step_deg = c2.number_input("Step (°)", value=12.5, step=0.5, min_value=0.1, format="%.1f")
+step_deg = c2.number_input("Step (°)", value=12.5, step=0.5, min_value=0.1, format="%.1f",
+                           disabled=from_presets)
 n_captures = c3.number_input("Captures", value=35, step=1, min_value=1)
-direction = c4.selectbox("Direction", ["Right", "Left"])
+direction = c4.selectbox("Direction", ["Right", "Left"], disabled=from_presets)
 
 c5, c6 = st.columns(2)
 width = c5.selectbox("Image width (px)", [1280, 1920, 2560], index=0)
-settle = c6.number_input("Settle after move (s)", value=2.0, step=0.5, min_value=0.0)
+settle = c6.number_input("Settle after move (s)", value=3.0 if from_presets else 2.0,
+                         step=0.5, min_value=0.0)
 
 st.caption(f"→ poses {int(start_pose)}–{int(start_pose) + int(n_captures) - 1} saved in `{out_dir}` "
-           "(previous images of this camera are deleted first)")
+           "(previous images of this camera are deleted first)"
+           + (" — from the presets already on the camera" if from_presets else ""))
 
-if st.button("🎬 Run capture loop", type="primary", width="stretch"):
+if st.button("🎬 Recapture existing poses" if from_presets else "🎬 Run capture loop",
+             type="primary", width="stretch"):
     progress = st.progress(0.0)
     preview = st.empty()
     with st.status("Capturing poses…", expanded=True) as status:
@@ -128,6 +138,7 @@ if st.button("🎬 Run capture loop", type="primary", width="stretch"):
                 start_pose=int(start_pose), step_deg=float(step_deg),
                 n_captures=int(n_captures), direction=direction,
                 width=int(width), settle=float(settle), on_pose=on_pose,
+                from_presets=from_presets,
             )
             status.update(label=f"Done — {int(n_captures)} images in {out_dir}", state="complete")
         except Exception as e:

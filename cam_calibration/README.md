@@ -33,6 +33,11 @@ capture → save captures/<pi_ip>/<cam_ip>/images/pose_NN_<timestamp>.jpg
 A capture that still fails after 3 tries is skipped and the sweep goes on: the
 calibration page just sees one longer step there.
 
+**Recapture** — same range of poses, but the camera goes to each preset it
+already has and takes a fresh image: nothing rotates by step, no preset is
+written. For a new set of images on an existing sweep (light, season, a
+cleaned lens) without redoing the presets. CLI: `--from-presets`.
+
 Defaults: start pose 20, step 12.5°, 35 captures, width 1280 (HD).
 
 Same thing from the CLI:

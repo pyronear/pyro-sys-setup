@@ -9,6 +9,9 @@ consistent with itself. Names carry the capture time, pose_NN_YYYYmmddHHMMSS.jpg
 A capture that still fails after its retries is skipped, the sweep goes on:
 the missing pose just makes one longer step for the calibration page.
 
+`from_presets=True` refreshes the images of poses that already exist on the
+camera: go to each preset, capture, next. No rotation by step, presets untouched.
+
 CLI:
     python capture_poses.py --pi-ip 192.168.255.166 --cam <CAM_IP> \
         --start-pose 20 --step 12.5 --n 35
@@ -45,21 +48,27 @@ def capture_one(client, cam_ip: str, out_dir: Path, pose: int,
 def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
                   step_deg: float = 12.5, n_captures: int = 35,
                   direction: str = "Right", width: int = 1280,
-                  settle: float = 2.0, on_pose=None, retry_delay: float = 3.0):
+                  settle: float = 2.0, on_pose=None, retry_delay: float = 3.0,
+                  from_presets: bool = False):
     """Go to `start_pose`, then capture/save/set_preset/rotate `n_captures` times.
+    With `from_presets`, go to each existing preset and capture it instead.
 
     Returns one path per pose, None where the capture failed."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("pose_*.jpg"):
         old.unlink()
 
-    client.goto_preset(cam_ip, pose_id=start_pose, speed=64)
-    time.sleep(3)
+    if not from_presets:
+        client.goto_preset(cam_ip, pose_id=start_pose, speed=64)
+        time.sleep(3)
 
     paths = []
     for i in range(n_captures):
         pose = start_pose + i
-        if i:
+        if from_presets:
+            client.goto_preset(cam_ip, pose_id=pose, speed=64)
+            time.sleep(settle)
+        elif i:
             client.move_by_degrees(cam_ip, direction=direction, degrees=step_deg)
             time.sleep(settle)
         try:
@@ -67,7 +76,8 @@ def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
                                retry_delay=retry_delay)
         except Exception:
             path = None                   # skip, keep the sweep aligned
-        client.set_preset(cam_ip, idx=pose)
+        if not from_presets:
+            client.set_preset(cam_ip, idx=pose)
         paths.append(path)
         if on_pose:
             on_pose(i, pose, path)
@@ -85,6 +95,7 @@ def _self_check():
 
         def goto_preset(self, cam_ip, pose_id, speed=50):
             self.goto = pose_id
+            self.gotos = getattr(self, "gotos", []) + [pose_id]
 
         def move_by_degrees(self, cam_ip, direction, degrees, speed=None):
             self.moves.append((direction, degrees))
@@ -119,6 +130,14 @@ def _self_check():
                               retry_delay=0)
     assert paths[1] is None and paths[0] and paths[2], paths
     assert c.presets == [20, 21, 22] and c.captures == 5, (c.presets, c.captures)
+
+    # refresh from existing presets: go to each one, no move, presets untouched
+    c = FakeClient()
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = capture_poses(c, "1.2.3.4", Path(tmp), n_captures=3, settle=0,
+                              from_presets=True)
+    assert c.gotos == [20, 21, 22] and c.moves == [] and c.presets == [], (c.gotos, c.moves, c.presets)
+    assert len(paths) == 3 and all(paths)
     print("self-check ok")
 
 
@@ -131,6 +150,8 @@ def main():
     p.add_argument("--n", type=int, default=35)
     p.add_argument("--direction", default="Right", choices=["Left", "Right"])
     p.add_argument("--width", type=int, default=1280)
+    p.add_argument("--from-presets", action="store_true",
+                   help="refresh the images of existing presets, no rotation")
     p.add_argument("--self-check", action="store_true")
     args = p.parse_args()
 
@@ -146,6 +167,7 @@ def main():
         capture_poses(client, args.cam, pose_dir(args.pi_ip, args.cam),
                       start_pose=args.start_pose, step_deg=args.step,
                       n_captures=args.n, direction=args.direction, width=args.width,
+                      from_presets=args.from_presets,
                       on_pose=lambda i, pose, path: print(
                           f"  {i+1}/{args.n} → {path.name if path else 'capture failed, skipped'}"))
     finally:
