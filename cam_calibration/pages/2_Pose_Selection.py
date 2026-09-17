@@ -92,6 +92,7 @@ except ValueError:
         st.warning("Expected `lat, lon` — e.g. `48.426801, 2.710724`")
 
 # ── one section per camera ────────────────────────────────────────────────────
+site_poses = []                       # (azimuth, fov) of every selected pose, all cameras
 for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
     cam_ip = cam_dir.name
     rows, fov = read_calibration(cam_dir)
@@ -106,17 +107,14 @@ for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
     for r in rows:
         st.session_state.setdefault(chk(r["pose"]), r["pose"] in saved_poses)
 
+    # No st.rerun() here: the boxes below are instantiated after these buttons
+    # in the same run, so they pick the new values up — and a rerun from inside
+    # this loop would drop the state of the other cameras' boxes, not yet drawn
     def set_all(keep):
         for i, r in enumerate(rows):
             st.session_state[chk(r["pose"])] = keep(i)
-        st.rerun()
 
-    selected = {r["pose"] for r in rows if st.session_state[chk(r["pose"])]}
-    st.session_state[f"sel_{cam_ip}"] = selected      # read by the map and the export
-
-    st.markdown(f"<span style='border-left:4px solid {hexcolor}; padding-left:8px'>"
-                f"<b>{cam_ip}</b> — {len(selected)} of {len(rows)} poses, "
-                f"FOV {fov:.1f}°</span>", unsafe_allow_html=True)
+    header = st.empty()
 
     # one pose in N is the usual choice: consecutive poses overlap heavily
     c1, c2, c3 = st.columns([1, 1, 4])
@@ -125,6 +123,12 @@ for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
         set_all(lambda i: i % int(every) == 0)
     if c3.button("Clear", key=f"clear_{cam_ip}"):
         set_all(lambda i: False)
+
+    selected = {r["pose"] for r in rows if st.session_state[chk(r["pose"])]}
+    st.session_state[f"sel_{cam_ip}"] = selected      # read by the map and the export
+    header.markdown(f"<span style='border-left:4px solid {hexcolor}; padding-left:8px'>"
+                    f"<b>{cam_ip}</b> — {len(selected)} of {len(rows)} poses, "
+                    f"FOV {fov:.1f}°</span>", unsafe_allow_html=True)
 
     cols = st.columns(COLS_PER_ROW)
     for i, row in enumerate(rows):
@@ -135,14 +139,11 @@ for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
             st.checkbox(f"{row['pose']} · {row['az']:.0f}°", key=chk(row["pose"]))
 
     chosen = [r for r in rows if r["pose"] in selected]
+    site_poses += [(r["az"], fov) for r in chosen]
     if chosen:
-        gaps = blind_gaps([r["az"] for r in chosen], fov)
-        worst = max(gaps)
-        if worst > 0:
-            st.error(f"**{worst:.1f}° blind sector** with this selection — a fire "
-                     "can sit in it. Keep more poses.")
-        else:
-            st.success(f"Full circle covered, smallest overlap {-worst:.1f}°.")
+        worst = max(blind_gaps([r["az"] for r in chosen], fov))
+        st.caption(f"This camera alone: {worst:.1f}° blind sector" if worst > 0
+                   else f"This camera alone covers the full circle, smallest overlap {-worst:.1f}°")
 
         # ── push as presets 0..N-1 ────────────────────────────────────────────
         mapping = ", ".join(f"{r['pose']}→{i}" for i, r in enumerate(chosen))
@@ -180,8 +181,17 @@ for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
                 st.rerun()
     st.divider()
 
-# ── map ───────────────────────────────────────────────────────────────────────
+# ── coverage of the whole site: the cameras share the mast, so a sector one
+# of them leaves open may be watched by another ───────────────────────────────
 st.subheader("Coverage")
+if site_poses:
+    worst = max(blind_gaps([a for a, _ in site_poses], [f for _, f in site_poses]))
+    if worst > 0:
+        st.error(f"**{worst:.1f}° blind sector** for the site with this selection — "
+                 "a fire can sit in it. Keep more poses on one of the cameras.")
+    else:
+        st.success(f"Full circle covered by the {len(cam_dirs)} camera(s) together, "
+                   f"smallest overlap {-worst:.1f}°.")
 if station_lat is None:
     st.info("Enter the station lat, lon above to draw the cones.")
 else:

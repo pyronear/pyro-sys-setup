@@ -237,15 +237,17 @@ class Landmark(NamedTuple):
 RESIDUAL_DEG = 0.5
 
 
-def blind_gaps(azimuths: list[float], fov: float) -> list[float]:
+def blind_gaps(azimuths: list[float], fov: float | list[float]) -> list[float]:
     """Uncovered sector after each pose, going round the circle. A positive
-    value is a hole a fire can sit in; a negative one is the overlap."""
-    ordered = sorted(a % 360.0 for a in azimuths)
+    value is a hole a fire can sit in; a negative one is the overlap.
+    `fov` is one value, or one per pose when several cameras share the mast."""
+    fovs = [fov] * len(azimuths) if isinstance(fov, (int, float)) else list(fov)
+    ordered = sorted(zip((a % 360.0 for a in azimuths), fovs))
     # `or 360`: closing the circle onto the same azimuth is a full turn, not
     # nothing — a single pose, or two poses at the same azimuth after a
     # dropped step, leave 360 - fov uncovered
-    return [(((b - a) % 360.0) or 360.0) - fov
-            for a, b in zip(ordered, ordered[1:] + ordered[:1])]
+    return [(((b - a) % 360.0) or 360.0) - (fa + fb) / 2
+            for (a, fa), (b, fb) in zip(ordered, ordered[1:] + ordered[:1])]
 
 
 def anchor_from_landmarks(steps: list[Step], image_w: int, fov: float,
@@ -361,6 +363,9 @@ def demo() -> None:
     # ended up at the same azimuth
     assert blind_gaps([100.0], 51.0) == [309.0]
     assert max(blind_gaps([100.0, 100.0], 51.0)) == 309.0
+    # two cameras on one mast: each pose covers half its own fov on each side
+    assert blind_gaps([0.0, 90.0, 180.0, 270.0], [100.0, 80.0, 100.0, 80.0]) == [0.0] * 4
+    assert blind_gaps([0.0, 180.0], [60.0, 100.0]) == [100.0, 100.0]
 
     # ── landmarks ────────────────────────────────────────────────────────────
     def seen_at(landmark_az: float, pose: int) -> float:
