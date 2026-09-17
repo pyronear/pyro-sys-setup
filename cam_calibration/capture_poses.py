@@ -54,9 +54,12 @@ def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
                   step_deg: float = 12.5, n_captures: int = 35,
                   direction: str = "Right", width: int = 1280,
                   settle: float = 2.0, on_pose=None, retry_delay: float = 3.0,
-                  from_presets: bool = False, stop: threading.Event | None = None):
+                  from_presets: bool = False, stop: threading.Event | None = None,
+                  from_current: bool = False):
     """Go to `start_pose`, then capture/save/set_preset/rotate `n_captures` times.
     With `from_presets`, go to each existing preset and capture it instead.
+    With `from_current`, the sweep starts where the camera is now instead of
+    going to preset `start_pose` first — the preset need not exist yet.
     `stop`, once set, ends the run before the next pose.
 
     Returns one path per pose done, None where the capture failed."""
@@ -69,7 +72,7 @@ def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
         for name in ("landmarks.json", "calibration.csv"):
             (out_dir.parent / name).unlink(missing_ok=True)
 
-    if not from_presets:
+    if not from_presets and not from_current:
         client.goto_preset(cam_ip, pose_id=start_pose, speed=64)
         time.sleep(3)
 
@@ -205,6 +208,12 @@ def _self_check():
         paths = capture_poses(c, "1.2.3.4", Path(tmp), n_captures=5, settle=0, stop=stop,
                               on_pose=lambda i, pose, path: stop.set())
     assert len(paths) == 1 and c.moves == [], (paths, c.moves)
+
+    # from the current position: no goto first, the presets are still written
+    c = FakeClient()
+    with tempfile.TemporaryDirectory() as tmp:
+        capture_poses(c, "1.2.3.4", Path(tmp), n_captures=2, settle=0, from_current=True)
+    assert c.goto is None and c.presets == [20, 21], (c.goto, c.presets)
     print("self-check ok")
 
 
@@ -220,6 +229,8 @@ def main():
     p.add_argument("--width", type=int, default=1280)
     p.add_argument("--from-presets", action="store_true",
                    help="refresh the images of existing presets, no rotation")
+    p.add_argument("--from-current", action="store_true",
+                   help="start the sweep where the camera is now, not at the start preset")
     p.add_argument("--self-check", action="store_true")
     args = p.parse_args()
 
@@ -234,6 +245,7 @@ def main():
         client, args.cam, lambda cam: pose_dir(args.pi_ip, cam),
         start_pose=args.start_pose, step_deg=args.step, n_captures=args.n,
         direction=args.direction, width=args.width, from_presets=args.from_presets,
+        from_current=args.from_current,
         on_pose=lambda cam, i, pose, path: print(
             f"  [{cam}] {i+1}/{args.n} → {path.name if path else 'capture failed, skipped'}"))
     for cam, r in results.items():

@@ -80,6 +80,19 @@ with col_shot:
             except Exception as e:
                 st.error(f"Capture failed: {e}")
 
+n1, n2, n3 = st.columns([1, 1, 1])
+nudge = n1.number_input("Nudge (°)", value=5.0, step=1.0, min_value=0.5,
+                        help="Aim the camera before a sweep that starts from here.")
+for col, label, side in ((n2, "◀ Left", "Left"), (n3, "▶ Right", "Right")):
+    with col:
+        st.write("")
+        if st.button(label, width="stretch", key=f"nudge_{side}"):
+            try:
+                client.stop_patrol(cam_ip)
+                client.move_by_degrees(cam_ip, direction=side, degrees=float(nudge))
+            except Exception as e:
+                st.error(f"Move failed: {e}")
+
 check_img = st.session_state.get("check_img")
 if check_img and Path(check_img).exists():
     st.image(str(check_img), caption=str(check_img), width="stretch")
@@ -108,6 +121,11 @@ c5, c6 = st.columns(2)
 width = c5.selectbox("Image width (px)", [1280, 1920, 2560], index=0)
 settle = c6.number_input("Settle after move (s)", value=3.0 if from_presets else 2.0,
                          step=0.5, min_value=0.0)
+from_current = (not from_presets) and st.checkbox(
+    "Start from where the camera is now",
+    help="Skip going to the start preset first: aim the camera with the nudge "
+         "buttons above, the sweep starts here and stores it as the start pose. "
+         "Needed on a camera that has no presets yet.")
 
 st.caption(f"→ poses {int(start_pose)}–{int(start_pose) + int(n_captures) - 1} saved in "
            f"`{pose_dir(pi_ip, '<cam>')}` (previous images of each camera are deleted first)"
@@ -131,7 +149,7 @@ if st.button("🎬 Recapture existing poses" if from_presets else "🎬 Run capt
             start_pose=int(start_pose), step_deg=float(step_deg),
             n_captures=int(n_captures), direction=direction,
             width=int(width), settle=float(settle), from_presets=from_presets,
-            stop=stop)),
+            from_current=from_current, stop=stop)),
         daemon=True)
     worker.start()
     st.session_state["capture_run"] = run = {

@@ -40,6 +40,11 @@ cleaned lens) without redoing the presets. CLI: `--from-presets`.
 
 Defaults: start pose 20, step 12.5°, 35 captures, width 1280 (HD).
 
+The sweep first goes to the start preset, which must exist. On a camera
+without presets, or to start the sweep elsewhere, aim it with the nudge
+buttons and tick **Start from where the camera is now** (`--from-current` on
+the CLI): the sweep starts there and stores it as the start pose.
+
 Several PTZ cameras on the same Pi are captured **in parallel**: pick them in
 the camera list, one progress column each. The API locks per camera, so they
 never wait for each other. No video stream is used, a capture is a snapshot.
