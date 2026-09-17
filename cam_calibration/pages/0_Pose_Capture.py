@@ -7,7 +7,9 @@ Page 0 — Pose capture.
 """
 
 from pathlib import Path
+import queue
 import sys
+import threading
 import time
 
 import streamlit as st
@@ -15,7 +17,7 @@ import streamlit as st
 from pyro_camera_api_client.client import PyroCameraAPIClient
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from capture_poses import capture_one, capture_poses, pose_dir
+from capture_poses import capture_in_parallel, capture_one, pose_dir
 
 st.set_page_config(page_title="Pose capture", layout="wide")
 st.title("0 · Pose capture")
@@ -72,18 +74,11 @@ with col_shot:
     if st.button("📷 Capture check image", width="stretch"):
         with st.spinner("Capturing…"):
             try:
-                client.start_stream(cam_ip)
-                time.sleep(2)
                 st.session_state["check_img"] = capture_one(
                     client, cam_ip, out_dir.parent / "checks", pose=int(goto_pose), width=1280
                 )
             except Exception as e:
                 st.error(f"Capture failed: {e}")
-            finally:
-                try:
-                    client.stop_stream()
-                except Exception:
-                    pass
 
 check_img = st.session_state.get("check_img")
 if check_img and Path(check_img).exists():
@@ -92,6 +87,9 @@ if check_img and Path(check_img).exists():
 # ── capture loop ──────────────────────────────────────────────────────────────
 st.divider()
 st.subheader("Capture loop")
+
+all_ptz = [c["camera_id"] for c in cameras]
+loop_cams = st.multiselect("Cameras (captured in parallel)", all_ptz, default=all_ptz)
 
 from_presets = st.radio(
     "Mode", ["Sweep", "Recapture"], horizontal=True,
@@ -111,40 +109,49 @@ width = c5.selectbox("Image width (px)", [1280, 1920, 2560], index=0)
 settle = c6.number_input("Settle after move (s)", value=3.0 if from_presets else 2.0,
                          step=0.5, min_value=0.0)
 
-st.caption(f"→ poses {int(start_pose)}–{int(start_pose) + int(n_captures) - 1} saved in `{out_dir}` "
-           "(previous images of this camera are deleted first)"
+st.caption(f"→ poses {int(start_pose)}–{int(start_pose) + int(n_captures) - 1} saved in "
+           f"`{pose_dir(pi_ip, '<cam>')}` (previous images of each camera are deleted first)"
            + (" — from the presets already on the camera" if from_presets else ""))
 
 if st.button("🎬 Recapture existing poses" if from_presets else "🎬 Run capture loop",
-             type="primary", width="stretch"):
-    progress = st.progress(0.0)
-    preview = st.empty()
-    with st.status("Capturing poses…", expanded=True) as status:
+             type="primary", width="stretch", disabled=not loop_cams):
+    for cam in loop_cams:
+        client.stop_patrol(cam)
+
+    # one column per camera; the capture threads only push events, the page
+    # thread draws them — Streamlit widgets are not usable from other threads
+    cols = st.columns(len(loop_cams))
+    ui = {}
+    for col, cam in zip(cols, loop_cams):
+        with col:
+            st.markdown(f"**{cam}**")
+            ui[cam] = (st.progress(0.0), st.empty(), st.empty())
+
+    events, results = queue.Queue(), {}
+    worker = threading.Thread(
+        target=lambda: results.update(capture_in_parallel(
+            client, loop_cams, lambda cam: pose_dir(pi_ip, cam),
+            on_pose=lambda cam, i, pose, path: events.put((cam, i, pose, path)),
+            start_pose=int(start_pose), step_deg=float(step_deg),
+            n_captures=int(n_captures), direction=direction,
+            width=int(width), settle=float(settle), from_presets=from_presets)),
+        daemon=True)
+    worker.start()
+    while worker.is_alive() or not events.empty():
         try:
-            client.stop_patrol(cam_ip)
-            client.start_stream(cam_ip)
-            time.sleep(2)
+            cam, i, pose, path = events.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        bar, line, preview = ui[cam]
+        bar.progress((i + 1) / int(n_captures))
+        if path is None:
+            line.write(f"✗ pose {pose} — capture failed, skipped")
+        else:
+            line.write(f"✓ {i + 1}/{int(n_captures)} · pose {pose} → {path.name}")
+            preview.image(str(path), caption=f"pose {pose}", width="stretch")
 
-            def on_pose(i, pose, path):
-                progress.progress((i + 1) / int(n_captures))
-                if path is None:
-                    st.write(f"  ✗ pose {pose} — capture failed, skipped")
-                    return
-                st.write(f"  ✓ pose {pose} → {path.name}")
-                preview.image(str(path), caption=f"pose {pose}", width=480)
-
-            capture_poses(
-                client, cam_ip, out_dir,
-                start_pose=int(start_pose), step_deg=float(step_deg),
-                n_captures=int(n_captures), direction=direction,
-                width=int(width), settle=float(settle), on_pose=on_pose,
-                from_presets=from_presets,
-            )
-            status.update(label=f"Done — {int(n_captures)} images in {out_dir}", state="complete")
-        except Exception as e:
-            status.update(label=f"Error: {e}", state="error")
-        finally:
-            try:
-                client.stop_stream()
-            except Exception:
-                pass
+    for cam, r in results.items():
+        if isinstance(r, Exception):
+            st.error(f"{cam}: {r}")
+        else:
+            st.success(f"{cam}: {sum(p is not None for p in r)}/{len(r)} images in {pose_dir(pi_ip, cam)}")

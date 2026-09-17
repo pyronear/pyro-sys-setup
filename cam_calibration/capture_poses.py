@@ -12,12 +12,17 @@ the missing pose just makes one longer step for the calibration page.
 `from_presets=True` refreshes the images of poses that already exist on the
 camera: go to each preset, capture, next. No rotation by step, presets untouched.
 
+Several cameras on one Pi run at the same time: the API locks per camera, so
+they do not wait for each other. No video stream is involved — a capture is a
+plain snapshot, and the Pi allows one stream at a time anyway.
+
 CLI:
-    python capture_poses.py --pi-ip 192.168.255.166 --cam <CAM_IP> \
+    python capture_poses.py --pi-ip 192.168.255.166 --cam <CAM_IP> [--cam <CAM_IP_2>] \
         --start-pose 20 --step 12.5 --n 35
 """
 
 import argparse
+import threading
 import time
 from pathlib import Path
 
@@ -89,6 +94,27 @@ def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
     return paths
 
 
+def capture_in_parallel(client, cam_ips, out_dir_for, on_pose=None, **kw) -> dict:
+    """capture_poses on every camera at once. Returns {cam_ip: paths}, or the
+    exception for a camera whose run failed. `on_pose(cam_ip, i, pose, path)`
+    is called from the capture threads."""
+    results = {}
+
+    def run(cam_ip):
+        cb = (lambda i, pose, path: on_pose(cam_ip, i, pose, path)) if on_pose else None
+        try:
+            results[cam_ip] = capture_poses(client, cam_ip, out_dir_for(cam_ip), on_pose=cb, **kw)
+        except Exception as e:
+            results[cam_ip] = e
+
+    threads = [threading.Thread(target=run, args=(c,), daemon=True) for c in cam_ips]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    return results
+
+
 def _self_check():
     import tempfile
     from PIL import Image
@@ -152,13 +178,31 @@ def _self_check():
         assert (out.parent / "landmarks.json").exists(), "presets unchanged: landmarks stay"
     assert c.gotos == [20, 21, 22] and c.moves == [] and c.presets == [], (c.gotos, c.moves, c.presets)
     assert len(paths) == 3 and all(paths)
+
+    # two cameras at once: both complete, events carry the camera, one failing
+    # camera does not take the other down
+    class Flaky(FakeClient):
+        def goto_preset(self, cam_ip, pose_id, speed=50):
+            if cam_ip == "bad":
+                raise OSError("no such preset")
+            super().goto_preset(cam_ip, pose_id, speed)
+
+    c, events = Flaky(), []
+    with tempfile.TemporaryDirectory() as tmp:
+        res = capture_in_parallel(c, ["a", "b", "bad"], lambda cam: Path(tmp) / cam / "images",
+                                  on_pose=lambda cam, i, p, path: events.append((cam, p)),
+                                  n_captures=3, settle=0)
+    assert len(res["a"]) == 3 and len(res["b"]) == 3, res
+    assert isinstance(res["bad"], OSError), res["bad"]
+    assert sorted(events) == sorted([(cam, p) for cam in "ab" for p in (20, 21, 22)]), events
     print("self-check ok")
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--pi-ip", default="192.168.255.166")
-    p.add_argument("--cam", required=True)
+    p.add_argument("--cam", action="append", required=True,
+                   help="camera IP, repeat for several cameras captured in parallel")
     p.add_argument("--start-pose", type=int, default=20)
     p.add_argument("--step", type=float, default=12.5)
     p.add_argument("--n", type=int, default=35)
@@ -174,18 +218,16 @@ def main():
 
     from pyro_camera_api_client.client import PyroCameraAPIClient
     client = PyroCameraAPIClient(f"http://{args.pi_ip}:8081", timeout=60.0)
-    client.stop_patrol(args.cam)
-    client.start_stream(args.cam)
-    time.sleep(2)
-    try:
-        capture_poses(client, args.cam, pose_dir(args.pi_ip, args.cam),
-                      start_pose=args.start_pose, step_deg=args.step,
-                      n_captures=args.n, direction=args.direction, width=args.width,
-                      from_presets=args.from_presets,
-                      on_pose=lambda i, pose, path: print(
-                          f"  {i+1}/{args.n} → {path.name if path else 'capture failed, skipped'}"))
-    finally:
-        client.stop_stream()
+    for cam in args.cam:
+        client.stop_patrol(cam)
+    results = capture_in_parallel(
+        client, args.cam, lambda cam: pose_dir(args.pi_ip, cam),
+        start_pose=args.start_pose, step_deg=args.step, n_captures=args.n,
+        direction=args.direction, width=args.width, from_presets=args.from_presets,
+        on_pose=lambda cam, i, pose, path: print(
+            f"  [{cam}] {i+1}/{args.n} → {path.name if path else 'capture failed, skipped'}"))
+    for cam, r in results.items():
+        print(f"{cam}: {'ERROR ' + str(r) if isinstance(r, Exception) else f'{sum(p is not None for p in r)}/{len(r)} images'}")
 
 
 if __name__ == "__main__":

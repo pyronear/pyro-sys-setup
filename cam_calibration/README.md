@@ -40,10 +40,14 @@ cleaned lens) without redoing the presets. CLI: `--from-presets`.
 
 Defaults: start pose 20, step 12.5°, 35 captures, width 1280 (HD).
 
+Several PTZ cameras on the same Pi are captured **in parallel**: pick them in
+the camera list, one progress column each. The API locks per camera, so they
+never wait for each other. No video stream is used, a capture is a snapshot.
+
 Same thing from the CLI:
 
 ```bash
-python capture_poses.py --pi-ip 192.168.255.166 --cam <CAM_IP> \
+python capture_poses.py --pi-ip 192.168.255.166 --cam <CAM_IP> --cam <CAM_IP_2> \
     --start-pose 20 --step 12.5 --n 35
 
 python capture_poses.py --cam x --self-check   # logic self-check, no camera needed

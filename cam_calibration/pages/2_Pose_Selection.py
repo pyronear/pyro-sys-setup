@@ -165,8 +165,6 @@ for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
                     client = PyroCameraAPIClient(f"http://{pi_ip}:8081", timeout=60.0)
                     try:
                         client.stop_patrol(cam_ip)
-                        client.start_stream(cam_ip)
-                        time.sleep(2)
                         for new_idx, r in enumerate(chosen):
                             st.write(f"pose {r['pose']} → preset {new_idx}")
                             client.goto_preset(cam_ip, pose_id=r["pose"], speed=64)
@@ -176,11 +174,6 @@ for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
                                             "the patrol yourself.", state="complete")
                     except Exception as e:
                         status.update(label=f"Error: {e}", state="error")
-                    finally:
-                        try:
-                            client.stop_stream()
-                        except Exception:
-                            pass
                 st.session_state[confirm] = False
             if cancel.button("Cancel", key=f"no_{cam_ip}", width="stretch"):
                 st.session_state[confirm] = False
