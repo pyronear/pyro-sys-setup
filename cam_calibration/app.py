@@ -24,4 +24,6 @@ Set the Pi IP in the sidebar, then use the pages:
 0. **Pose capture** — go to a pose to check it, then capture a loop of poses
    (start pose + step in °): each image is saved locally and the position is
    stored as a camera preset.
+1. **Pose calibration** — measure the real rotation of every step, fit the real
+   FOV by loop closure, anchor on one known landmark, export `calibration.csv`.
 """)
