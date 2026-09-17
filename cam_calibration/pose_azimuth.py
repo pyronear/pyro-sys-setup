@@ -42,6 +42,11 @@ def shift_to_angle(dx_px: float, image_w: int, fov_deg: float) -> float:
 # false zero shift. Per camera: depends on the tilt, adjust on page 1.
 BAND = (0.55, 0.92)
 
+# Below this shift the pair reads as "the camera never moved" — a silently
+# dropped step. Also the floor for calling a step backward: a dropped step is
+# 0 ± noise, and noise must not send it to the re-measure.
+STILL_PX = 2.0
+
 
 def _grey(path: Path, band: tuple[float, float] = BAND) -> np.ndarray:
     im = Image.open(path).convert("L")
@@ -73,7 +78,7 @@ def shift_px(a: np.ndarray, b: np.ndarray, sign: int = 0) -> tuple[float, float,
     if sign:
         lags = np.arange(w)
         lags = np.where(lags > w / 2, lags - w, lags)
-        search = np.where(lags * sign > 0, corr, -np.inf)
+        search = np.where(lags * sign >= 0, corr, -np.inf)   # keep lag 0: a dropped step
     iy, ix = np.unravel_index(np.argmax(search), search.shape)
     dx = ix + _parabolic(corr[iy, (ix - 1) % w], corr[iy, ix], corr[iy, (ix + 1) % w])
     dy = iy + _parabolic(corr[(iy - 1) % h, ix], corr[iy, ix], corr[(iy + 1) % h, ix])
@@ -111,7 +116,7 @@ def measure_steps(folder, band: tuple[float, float] = BAND) -> tuple[list[Step],
     # time looking only in the direction the sweep actually went.
     direction = 1 if sorted(s.dx for s in steps)[len(steps) // 2] > 0 else -1
     for i, s in enumerate(steps):
-        if s.dx * direction < 0:
+        if s.dx * direction < -STILL_PX:
             dx, dy, peak = shift_px(greys[s.pose_a], greys[s.pose_b], direction)
             steps[i] = Step(s.pose_a, s.pose_b, dx, dy, peak, repaired=True)
     return steps, image_w
@@ -222,6 +227,9 @@ def demo() -> None:
     assert wrong < 0, wrong
     right, _, _ = shift_px(a * 1.0, b * 1.0, sign=1)
     assert abs(right - 20) < 0.5, right
+    # a dropped step is 0 +/- noise: the restricted search must keep lag 0
+    still, _, _ = shift_px(a * 1.0, a + 0.05 * rng.random(a.shape), sign=1)
+    assert abs(still) < 0.5, f"lag 0 must survive the restriction, got {still}"
 
     # ── geometry ─────────────────────────────────────────────────────────────
     W = 1280
