@@ -19,6 +19,7 @@ from PIL import Image, ImageDraw
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+import pose_azimuth
 from capture_poses import CAPTURES_DIR
 from pixel_shift import latest_per_pose, to_native
 from pose_azimuth import (BAND, STILL_PX, anchor_from_click, closure_shift, measure_steps,
@@ -43,8 +44,10 @@ poses = latest_per_pose(img_dir)
 st.caption(f"{len(poses)} poses — {min(poses)} … {max(poses)}")
 
 # keep the newest mtime in the cache keys so measurements never outlive the
-# images they were made from
-stamp = max(p.stat().st_mtime for p in poses.values())
+# images they were made from — nor the code: st.cache_data only hashes the
+# cached function itself, not pose_azimuth, and a stale cache once exported a
+# calibration.csv with a bug that had already been fixed
+stamp = max(p.stat().st_mtime for p in poses.values()), Path(pose_azimuth.__file__).stat().st_mtime
 
 # ── 1 · measure every step ────────────────────────────────────────────────────
 st.subheader("1 · Measured steps")
@@ -59,7 +62,7 @@ band = st.slider(
 
 
 @st.cache_data(show_spinner="Correlating consecutive poses…")
-def _steps(folder: str, n_files: int, band: tuple, stamp: float):
+def _steps(folder: str, n_files: int, band: tuple, stamp: tuple):
     return measure_steps(Path(folder), band)
 
 
@@ -77,7 +80,7 @@ first_pose = pose_ids[0]
 
 
 @st.cache_data(show_spinner=False)
-def _closure(folder: str, pose_a: int, pose_b: int, band: tuple, stamp: float):
+def _closure(folder: str, pose_a: int, pose_b: int, band: tuple, stamp: tuple):
     return closure_shift(Path(folder), pose_a, pose_b, band)
 
 
