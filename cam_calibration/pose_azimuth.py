@@ -138,7 +138,8 @@ def suggest_band(folder, candidates=BAND_CANDIDATES) -> tuple[tuple[float, float
         steps, _ = measure_steps(folder, band)
         dxs = [abs(s.dx) for s in steps]
         med = sorted(dxs)[len(dxs) // 2]
-        ok = sum(abs(x - med) < 0.3 * med for x in dxs)
+        # a fixed foreground agrees with itself perfectly, at zero: not a measurement
+        ok = sum(abs(x - med) < 0.3 * med for x in dxs) if med >= STILL_PX else 0
         peak = sorted(s.peak for s in steps)[len(steps) // 2]
         if best is None or (ok, peak) > (best[0], best[1]):
             best = (ok, peak, band, len(steps))
@@ -230,6 +231,12 @@ class Landmark(NamedTuple):
     x: float           # native pixel column where it was clicked
     az: float          # its compass azimuth, read on a map or surveyed
     y: float = 0.0     # only to draw the marker back
+    image_w: int = 0   # width of the image it was clicked on; 0 = the current one
+
+    def scale(self, image_w: int) -> float:
+        """Factor from the clicked image to one of `image_w`: a recapture at
+        another resolution must not move the landmark."""
+        return image_w / self.image_w if self.image_w else 1.0
 
 
 # A landmark disagreeing with the others by more than this is misread on the
@@ -242,12 +249,19 @@ def blind_gaps(azimuths: list[float], fov: float | list[float]) -> list[float]:
     value is a hole a fire can sit in; a negative one is the overlap.
     `fov` is one value, or one per pose when several cameras share the mast."""
     fovs = [fov] * len(azimuths) if isinstance(fov, (int, float)) else list(fov)
-    ordered = sorted(zip((a % 360.0 for a in azimuths), fovs))
-    # `or 360`: closing the circle onto the same azimuth is a full turn, not
-    # nothing — a single pose, or two poses at the same azimuth after a
-    # dropped step, leave 360 - fov uncovered
-    return [(((b - a) % 360.0) or 360.0) - (fa + fb) / 2
-            for (a, fa), (b, fb) in zip(ordered, ordered[1:] + ordered[:1])]
+    # union of the cones, swept once round the circle from the first one: a
+    # cone inside a wider one, or two cones at the same azimuth, add no hole,
+    # and a single cone leaves 360 - fov open
+    cones = sorted((a % 360.0 - f / 2, a % 360.0 + f / 2) for a, f in zip(azimuths, fovs))
+    cones += [(s + 360.0, e + 360.0) for s, e in cones]
+    start, reach, gaps = cones[0][0], cones[0][1], []
+    for s, e in cones[1:]:
+        if s >= start + 360.0:
+            break
+        gaps.append(s - reach)            # > 0: a hole, < 0: the overlap
+        reach = max(reach, e)
+    gaps.append(start + 360.0 - reach)    # closing the circle
+    return gaps
 
 
 def anchor_from_landmarks(steps: list[Step], image_w: int, fov: float,
@@ -258,7 +272,7 @@ def anchor_from_landmarks(steps: list[Step], image_w: int, fov: float,
     wins, so a landmark misread on the map shows up as its own residual instead
     of dragging every pose. Returns (azimuths, residual of each landmark)."""
     az0 = pose_azimuths(steps, image_w, fov, steps[0].pose_a, 0.0)
-    votes = [(lm.az - pixel_to_angle(lm.x, image_w, fov) - az0[lm.pose]) % 360.0
+    votes = [(lm.az - pixel_to_angle(lm.x * lm.scale(image_w), image_w, fov) - az0[lm.pose]) % 360.0
              for lm in landmarks]
     # circular median: unwrap around the vote closest to all the others, so a
     # lone vote on the far side of the circle cannot pull the fold onto itself
@@ -366,6 +380,10 @@ def demo() -> None:
     # two cameras on one mast: each pose covers half its own fov on each side
     assert blind_gaps([0.0, 90.0, 180.0, 270.0], [100.0, 80.0, 100.0, 80.0]) == [0.0] * 4
     assert blind_gaps([0.0, 180.0], [60.0, 100.0]) == [100.0, 100.0]
+    # a duplicate pose inside a covered circle adds no hole
+    assert max(blind_gaps([0.0, 0.0, 90.0, 180.0, 270.0], 100.0)) == -10.0
+    # a narrow cone inside a wide one adds no hole either
+    assert max(blind_gaps([0.0, 10.0, 90.0, 180.0, 270.0], [100, 20, 100, 100, 100])) == -10.0
 
     # ── landmarks ────────────────────────────────────────────────────────────
     def seen_at(landmark_az: float, pose: int) -> float:
@@ -375,6 +393,10 @@ def demo() -> None:
     one = [Landmark(20, seen_at(90.0, 20), 90.0)]
     az1, res = anchor_from_landmarks(steps, W, TRUE_FOV, one)
     assert res == [0.0] and all(abs(az1[p] - az[p]) < 1e-6 for p in az), "one landmark = the anchor"
+    # the same landmark clicked on a half-width image anchors the same way
+    half = [Landmark(20, seen_at(90.0, 20) / 2, 90.0, image_w=W // 2)]
+    az_half, _ = anchor_from_landmarks(steps, W, TRUE_FOV, half)
+    assert all(abs(az_half[p] - az[p]) < 1e-6 for p in az), "landmark must follow the resolution"
     # a second one on the other side of the sweep agrees, a misread one stands out
     three = one + [Landmark(35, seen_at(275.0, 35), 275.0), Landmark(45, seen_at(30.0, 45), 33.0)]
     az3, res = anchor_from_landmarks(steps, W, TRUE_FOV, three)
@@ -482,6 +504,9 @@ def _demo_end_to_end() -> None:
         band, ok, n = suggest_band(d)
         # the dropped and the long step are off the median whatever the band
         assert band[1] <= 0.6 and ok == n - 2, (band, ok, n)
+        # a band on the fixed strip agrees with itself perfectly at zero shift
+        # and must still lose against one that measures motion
+        assert suggest_band(d, [(0.60, 0.95), (0.20, 0.50)])[0] == (0.20, 0.50)
         good, _ = measure_steps(d, band)
         assert sum(abs(s.dx) < 2 for s in good) == 1, "only the real dropped step reads zero"
 

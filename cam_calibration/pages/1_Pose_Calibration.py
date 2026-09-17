@@ -245,7 +245,8 @@ shown = img.copy()
 draw = ImageDraw.Draw(shown)
 for lm in landmarks:
     if lm.pose == lm_pose:
-        cross(draw, lm.x, lm.y, (80, 220, 80))          # stored: green
+        k = lm.scale(img.width)
+        cross(draw, lm.x * k, lm.y * k, (80, 220, 80))  # stored: green
 if pending:
     cross(draw, *pending, (255, 80, 80))                 # not added yet: red
 
@@ -259,7 +260,7 @@ if click:
 
 if pending and st.button(f"➕ Add landmark — pose {lm_pose}, x={pending[0]:.0f}, {lm_az:.1f}°",
                          type="primary"):
-    landmarks.append(Landmark(lm_pose, pending[0], lm_az, pending[1]))
+    landmarks.append(Landmark(lm_pose, pending[0], lm_az, pending[1], img.width))
     save_landmarks()
     del st.session_state[click_key]
     st.session_state[gen_key] = st.session_state.get(gen_key, 0) + 1

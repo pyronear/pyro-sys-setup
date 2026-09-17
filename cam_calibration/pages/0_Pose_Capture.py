@@ -36,11 +36,18 @@ def fetch_cameras(pi_ip: str):
 if st.button("Connect / Refresh camera list"):
     st.cache_data.clear()
 
+# a capture run in progress: its buttons must stay reachable whatever else
+# happens, and nothing else may move those cameras meanwhile
+run = st.session_state.get("capture_run")
+running = bool(run and run["worker"].is_alive())
+
 try:
     cameras = [c for c in fetch_cameras(pi_ip) if c.get("type") == "ptz"]
 except Exception as e:
     st.error(f"Cannot reach {pi_ip}:8081 — {e}")
-    st.stop()
+    if not running:
+        st.stop()
+    cameras = [{"camera_id": c, "type": "ptz"} for c in run["cams"]]
 
 if not cameras:
     st.warning("No PTZ camera found.")
@@ -61,7 +68,7 @@ with col_pose:
     goto_pose = st.number_input("Pose ID", value=39, step=1, min_value=1)
 with col_go:
     st.write("")
-    if st.button("▶️ Go to pose", width="stretch"):
+    if st.button("▶️ Go to pose", width="stretch", disabled=running):
         try:
             client.stop_patrol(cam_ip)
             client.goto_preset(cam_ip, pose_id=int(goto_pose), speed=64)
@@ -71,7 +78,7 @@ with col_go:
             st.error(f"Move failed: {e}")
 with col_shot:
     st.write("")
-    if st.button("📷 Capture check image", width="stretch"):
+    if st.button("📷 Capture check image", width="stretch", disabled=running):
         with st.spinner("Capturing…"):
             try:
                 st.session_state["check_img"] = capture_one(
@@ -86,7 +93,7 @@ nudge = n1.number_input("Nudge (°)", value=5.0, step=1.0, min_value=0.5,
 for col, label, side in ((n2, "◀ Left", "Left"), (n3, "▶ Right", "Right")):
     with col:
         st.write("")
-        if st.button(label, width="stretch", key=f"nudge_{side}"):
+        if st.button(label, width="stretch", key=f"nudge_{side}", disabled=running):
             try:
                 client.stop_patrol(cam_ip)
                 client.move_by_degrees(cam_ip, direction=side, degrees=float(nudge))
@@ -134,9 +141,6 @@ st.caption(f"→ poses {int(start_pose)}–{int(start_pose) + int(n_captures) - 
 # The run lives in session state: the capture threads only push events to a
 # queue (Streamlit widgets are not usable from other threads) and the page
 # redraws itself every second while they work, so a Stop button stays live.
-run = st.session_state.get("capture_run")
-running = bool(run and run["worker"].is_alive())
-
 if st.button("🎬 Recapture existing poses" if from_presets else "🎬 Run capture loop",
              type="primary", width="stretch", disabled=not loop_cams or running):
     for cam in loop_cams:
