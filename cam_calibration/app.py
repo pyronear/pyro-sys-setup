@@ -17,12 +17,11 @@ with st.sidebar:
     st.session_state["pi_ip"] = pi_ip
     st.caption("Set the Pi IP once — all pages use it.")
 
-st.title("Camera azimuth calibration")
+st.title("Camera calibration")
 st.markdown("""
-Use the pages in the sidebar to go through the calibration workflow:
+Set the Pi IP in the sidebar, then use the pages:
 
-1. **Single capture** — preview each camera, manually fine-tune pose 10 (sweep start)
-2. **Sweep & panorama** — sweep all PTZ cameras and stitch panoramas
-3. **Calibration** — click reference landmarks on the panorama, export `calibration.csv`
-4. **Pose selection** — pick poses to use, push them as presets, export `selected_poses.json`
+0. **Pose capture** — go to a pose to check it, then capture a loop of poses
+   (start pose + step in °): each image is saved locally and the position is
+   stored as a camera preset.
 """)
