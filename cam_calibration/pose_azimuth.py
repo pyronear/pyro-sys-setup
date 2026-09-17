@@ -218,9 +218,10 @@ def blind_gaps(azimuths: list[float], fov: float) -> list[float]:
     """Uncovered sector after each pose, going round the circle. A positive
     value is a hole a fire can sit in; a negative one is the overlap."""
     ordered = sorted(a % 360.0 for a in azimuths)
-    if len(ordered) == 1:
-        return [360.0 - fov]
-    return [((b - a) % 360.0) - fov
+    # `or 360`: closing the circle onto the same azimuth is a full turn, not
+    # nothing — a single pose, or two poses at the same azimuth after a
+    # dropped step, leave 360 - fov uncovered
+    return [(((b - a) % 360.0) or 360.0) - fov
             for a, b in zip(ordered, ordered[1:] + ordered[:1])]
 
 
@@ -234,7 +235,12 @@ def anchor_from_landmarks(steps: list[Step], image_w: int, fov: float,
     az0 = pose_azimuths(steps, image_w, fov, steps[0].pose_a, 0.0)
     votes = [(lm.az - pixel_to_angle(lm.x, image_w, fov) - az0[lm.pose]) % 360.0
              for lm in landmarks]
-    votes = [votes[0] + (v - votes[0] + 180.0) % 360.0 - 180.0 for v in votes]  # unwrap
+    # circular median: unwrap around the vote closest to all the others, so a
+    # lone vote on the far side of the circle cannot pull the fold onto itself
+    def wrap(d: float) -> float:
+        return (d + 180.0) % 360.0 - 180.0
+    centre = min(votes, key=lambda c: sum(abs(wrap(v - c)) for v in votes))
+    votes = [centre + wrap(v - centre) for v in votes]
     offset = float(np.median(votes))
     return {p: (a + offset) % 360.0 for p, a in az0.items()}, [v - offset for v in votes]
 
@@ -328,8 +334,10 @@ def demo() -> None:
     # gaps come back in ascending azimuth: after 10deg a 310deg hole, then
     # the wrap from 350deg back to 10deg overlaps by 10deg
     assert blind_gaps([350.0, 10.0], 30.0) == [310.0, -10.0]
-    # a single pose sees its fov and nothing else
+    # a single pose sees its fov and nothing else, and so do two poses that
+    # ended up at the same azimuth
     assert blind_gaps([100.0], 51.0) == [309.0]
+    assert max(blind_gaps([100.0, 100.0], 51.0)) == 309.0
 
     # ── landmarks ────────────────────────────────────────────────────────────
     def seen_at(landmark_az: float, pose: int) -> float:
@@ -344,10 +352,24 @@ def demo() -> None:
     az3, res = anchor_from_landmarks(steps, W, TRUE_FOV, three)
     assert abs(res[0]) < 1e-6 and abs(res[1]) < 1e-6 and abs(res[2] - 3.0) < 1e-6, res
     assert all(abs(az3[p] - az[p]) < 1e-6 for p in az), "the median ignores the bad one"
-    # wrap-around: a landmark just past north votes with the others
-    wrap = [Landmark(20, seen_at(359.5, 20), 359.5), Landmark(21, seen_at(0.5, 21), 0.5)]
-    _, res = anchor_from_landmarks(steps, W, TRUE_FOV, wrap)
+    def pose_seeing(landmark_az: float) -> int:
+        """The pose whose centre is closest to the landmark (in front of it)."""
+        return min(az, key=lambda p: abs((landmark_az - az[p] + 180) % 360 - 180))
+
+    def landmark(true_az: float, claimed_az: float) -> Landmark:
+        p = pose_seeing(true_az)
+        return Landmark(p, seen_at(true_az, p), claimed_az)
+
+    # wrap-around: a landmark just past north votes with the one just before
+    north = [landmark(359.5, 359.5), landmark(0.5, 0.5)]
+    _, res = anchor_from_landmarks(steps, W, TRUE_FOV, north)
     assert max(abs(r) for r in res) < 1e-6, res
+    # a first landmark wrong by half a turn must not win over two that agree
+    # across north
+    far = [landmark(90.0, 270.0)] + north
+    az_far, res = anchor_from_landmarks(steps, W, TRUE_FOV, far)
+    assert abs(abs(res[0]) - 180.0) < 1e-6 and max(abs(r) for r in res[1:]) < 1e-6, res
+    assert all(abs(az_far[p] - az[p]) < 1e-6 for p in az), "the pair across north anchors"
 
     _demo_end_to_end()
     print("pose_azimuth: all checks passed")

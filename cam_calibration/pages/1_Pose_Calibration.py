@@ -253,22 +253,35 @@ if not landmarks:
     st.info("Click the landmark in the image above, then add it.")
     st.stop()
 
-az, residuals = anchor_from_landmarks(steps, image_w, fov, landmarks)
+# a landmark on a pose this capture does not have (range changed, capture
+# failed) is shown so it can be removed, but takes no part in the fit
+usable = [lm for lm in landmarks if lm.pose in pose_ids]
+residual = {}
+if usable:
+    az, res = anchor_from_landmarks(steps, image_w, fov, usable)
+    residual = dict(zip((id(lm) for lm in usable), res))
 st.markdown(f"**{len(landmarks)} landmark{'s' if len(landmarks) > 1 else ''}** in `{lm_path.name}`")
-for i, (lm, r) in enumerate(zip(landmarks, residuals)):
+for i, lm in enumerate(landmarks):
     c_txt, c_del = st.columns([8, 1])
-    c_txt.write(f"pose {lm.pose} · x={lm.x:.0f} · {lm.az:.1f}° · residual **{r:+.2f}°**"
-                + (" ⚠ disagrees with the others" if abs(r) > RESIDUAL_DEG else ""))
+    r = residual.get(id(lm))
+    c_txt.write(f"pose {lm.pose} · x={lm.x:.0f} · {lm.az:.1f}° · "
+                + (f"residual **{r:+.2f}°**" + (" ⚠ disagrees with the others" if abs(r) > RESIDUAL_DEG else "")
+                   if r is not None else "⚠ pose not in this capture, ignored"))
     if c_del.button("🗑", key=f"del_lm_{i}", help="Remove this landmark"):
         del landmarks[i]
         save_landmarks()
         st.rerun()
 
-worst = max(abs(r) for r in residuals)
-if len(landmarks) == 1:
+if not usable:
+    st.info("None of the landmarks is on a pose of this capture: remove them and "
+            "click one in the image above.")
+    st.stop()
+
+worst = max(abs(r) for r in residual.values())
+if len(usable) == 1:
     st.caption("One landmark anchors the sweep but nothing checks it: add another "
                "one far away in azimuth to get a residual.")
-elif len(landmarks) == 2 and worst > RESIDUAL_DEG:
+elif len(usable) == 2 and worst > RESIDUAL_DEG:
     st.warning(f"The two landmarks disagree by {2 * worst:.2f}°. One of them is misread "
                "on the map or clicked on the wrong thing, and two cannot tell which: "
                "add a third one, the odd one out will show.")

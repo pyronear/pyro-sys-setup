@@ -57,6 +57,11 @@ def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("pose_*.jpg"):
         old.unlink()
+    if not from_presets:
+        # the presets move: the landmarks clicked on the old images and the
+        # calibration built from them are wrong for the new sweep
+        for name in ("landmarks.json", "calibration.csv"):
+            (out_dir.parent / name).unlink(missing_ok=True)
 
     if not from_presets:
         client.goto_preset(cam_ip, pose_id=start_pose, speed=64)
@@ -112,11 +117,17 @@ def _self_check():
     c = FakeClient()
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp)
+        out = out / "images"
+        (out.parent / "landmarks.json").touch()
+        (out.parent / "calibration.csv").touch()
+        out.mkdir()
         (out / "pose_20_20200101000000.jpg").touch()          # a previous run
         paths = capture_poses(c, "1.2.3.4", out, start_pose=20, step_deg=12.5,
                               n_captures=3, settle=0, width=1280)
         assert sorted(p.name for p in out.glob("*.jpg")) == \
             sorted(p.name for p in paths), "old run must be wiped"
+        assert not (out.parent / "landmarks.json").exists(), "a new sweep voids the landmarks"
+        assert not (out.parent / "calibration.csv").exists()
     assert c.goto == 20
     assert c.moves == [("Right", 12.5)] * 2, c.moves          # n-1 moves
     assert c.presets == [20, 21, 22], c.presets
@@ -134,8 +145,11 @@ def _self_check():
     # refresh from existing presets: go to each one, no move, presets untouched
     c = FakeClient()
     with tempfile.TemporaryDirectory() as tmp:
-        paths = capture_poses(c, "1.2.3.4", Path(tmp), n_captures=3, settle=0,
+        out = Path(tmp) / "images"
+        (out.parent / "landmarks.json").touch()
+        paths = capture_poses(c, "1.2.3.4", out, n_captures=3, settle=0,
                               from_presets=True)
+        assert (out.parent / "landmarks.json").exists(), "presets unchanged: landmarks stay"
     assert c.gotos == [20, 21, 22] and c.moves == [] and c.presets == [], (c.gotos, c.moves, c.presets)
     assert len(paths) == 3 and all(paths)
     print("self-check ok")

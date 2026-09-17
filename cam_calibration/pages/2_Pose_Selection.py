@@ -9,6 +9,7 @@ the map are the real ones, not a datasheet drawing.
 """
 
 import csv
+import itertools
 import json
 import math
 from pathlib import Path
@@ -91,7 +92,7 @@ except ValueError:
         st.warning("Expected `lat, lon` — e.g. `48.426801, 2.710724`")
 
 # ── one section per camera ────────────────────────────────────────────────────
-for (rgb, hexcolor), cam_dir in zip(CAM_COLORS, cam_dirs):
+for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
     cam_ip = cam_dir.name
     rows, fov = read_calibration(cam_dir)
     images = latest_per_pose(cam_dir / "images")
@@ -192,7 +193,7 @@ if station_lat is None:
     st.info("Enter the station lat, lon above to draw the cones.")
 else:
     cones, markers = [], []
-    for (rgb, _), cam_dir in zip(CAM_COLORS, cam_dirs):
+    for (rgb, _), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
         cam_ip = cam_dir.name
         rows, fov = read_calibration(cam_dir)
         markers.append({"pos": [station_lon, station_lat], "color": list(rgb),
