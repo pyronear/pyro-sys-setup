@@ -43,6 +43,10 @@ cam_dir = img_dir.parent
 poses = latest_per_pose(img_dir)
 st.caption(f"{len(poses)} poses — {min(poses)} … {max(poses)}")
 
+# re-capturing a sweep rewrites the same filenames: keep the newest mtime in the
+# cache keys so measurements never outlive the images they were made from
+stamp = max(p.stat().st_mtime for p in poses.values())
+
 # ── 1 · measure every step ────────────────────────────────────────────────────
 st.subheader("1 · Measured steps")
 
@@ -56,7 +60,7 @@ band = st.slider(
 
 
 @st.cache_data(show_spinner="Correlating consecutive poses…")
-def _steps(folder: str, n_files: int, band: tuple):
+def _steps(folder: str, n_files: int, band: tuple, stamp: float):
     return measure_steps(Path(folder), band)
 
 
@@ -64,7 +68,7 @@ if st.button("📐 Measure steps", type="primary"):
     st.cache_data.clear()
 
 try:
-    steps, image_w = _steps(str(img_dir), len(poses), band)
+    steps, image_w = _steps(str(img_dir), len(poses), band, stamp)
 except Exception as e:
     st.error(f"Measurement failed: {e}")
     st.stop()
@@ -74,13 +78,13 @@ first_pose = pose_ids[0]
 
 
 @st.cache_data(show_spinner=False)
-def _closure(folder: str, pose_a: int, pose_b: int, band: tuple):
+def _closure(folder: str, pose_a: int, pose_b: int, band: tuple, stamp: float):
     return closure_shift(Path(folder), pose_a, pose_b, band)
 
 
 with st.spinner("Looking for the loop-closing pose…"):
     guess = suggest_loop_pose(steps, image_w,
-                              lambda p: _closure(str(img_dir), first_pose, p, band)[1])
+                              lambda p: _closure(str(img_dir), first_pose, p, band, stamp)[1])
 if guess is None:
     st.error("The sweep never got half a turn round — nothing to close the loop on.")
     st.stop()
@@ -99,12 +103,12 @@ loop_pose = c1.selectbox(
 def fit(loop_p: int):
     """(fov, steps used) for a given loop-closing pose."""
     used = [s for s in steps if s.pose_a < loop_p]
-    dx_close, _ = _closure(str(img_dir), first_pose, loop_p, band)
+    dx_close, _ = _closure(str(img_dir), first_pose, loop_p, band, stamp)
     return solve_fov([s.dx for s in used], dx_close, image_w), used
 
 
 med_peak = sorted(s.peak for s in steps)[len(steps) // 2]
-loop_peak = _closure(str(img_dir), first_pose, int(loop_pose), band)[1]
+loop_peak = _closure(str(img_dir), first_pose, int(loop_pose), band, stamp)[1]
 if loop_peak < 3 * med_peak:
     st.warning(f"Pose {loop_pose} barely correlates with pose {first_pose} "
                f"(peak {loop_peak:.3f} against {med_peak:.3f} for a plain step) — "
@@ -140,13 +144,13 @@ if alt_fovs and min(abs(f - fov) for f in alt_fovs) > 1.0:
                "more than 1°) — the closure pair is probably matching the wrong "
                "thing. Try another loop pose, or move the band onto the ground.")
 
-mean_step = sum(angles) / len(angles)
+mean_step = sum(angles) / len(angles)      # negative on a Left sweep
 rows = [{"pose": f"{s.pose_a}→{s.pose_b}", "dx (px)": round(s.dx, 1),
          "dy (px)": round(s.dy, 1), "angle (°)": round(a, 2),
          "peak": round(s.peak, 3),
          "flag": ("🛑 no rotation" if abs(s.dx) < STILL_PX else
                   "⚠ weak match" if s.peak < WEAK_RATIO * med_peak else
-                  "⚠ outlier" if abs(a - mean_step) > 0.3 * mean_step else "")}
+                  "⚠ outlier" if abs(a - mean_step) > 0.3 * abs(mean_step) else "")}
         for s, a in zip(used, angles)]
 st.dataframe(rows, width="stretch", hide_index=True)
 
@@ -204,7 +208,7 @@ st.caption(f"Landmark at x={click_x:.0f}/{img.width} → centre of pose "
 st.subheader("3 · Pose azimuths")
 
 az = pose_azimuths(steps, image_w, fov, int(anchor_pose), anchor_az)
-gap = {s.pose_a: fov - shift_to_angle(s.dx, image_w, fov) for s in steps}
+gap = {s.pose_a: fov - abs(shift_to_angle(s.dx, image_w, fov)) for s in steps}
 out = [{"pose": p, "azimuth (°)": round(a, 2),
         "overlap with next (°)": round(gap[p], 1) if p in gap else None,
         "blind gap": "⚠" if p in gap and gap[p] < 0 else ""}

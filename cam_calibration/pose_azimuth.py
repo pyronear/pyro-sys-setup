@@ -116,18 +116,22 @@ def solve_fov(dx_steps: list[float], dx_close: float, image_w: int,
               lo: float = 20.0, hi: float = 120.0, tol: float = 1e-9) -> float | None:
     """FOV making the measured steps add up to exactly one turn.
 
-    Going from pose p0 to pose p0+n covers 360° plus whatever pose p0+n still
-    overlaps p0 by (`dx_close`, measured directly between those two frames):
+    Going from pose p0 to pose p0+n covers a full turn plus whatever pose p0+n
+    still overlaps p0 by (`dx_close`, measured directly between those two frames):
 
-        sum(angle(dx_i, fov)) - angle(dx_close, fov) = 360
+        sum(angle(dx_i, fov)) - angle(dx_close, fov) = +/- 360
+
+    The sign follows the sweep direction, so a Left sweep fits the same way.
 
     One unknown, no clicks, no datasheet value. Returns None when no FOV in
     [lo, hi] satisfies it — which means the loop pose is wrong, or a step is so
     badly broken that correlation locked onto the wrong peak.
     """
+    turn = math.copysign(360.0, sum(dx_steps))
+
     def residual(fov: float) -> float:
         total = sum(shift_to_angle(dx, image_w, fov) for dx in dx_steps)
-        return total - shift_to_angle(dx_close, image_w, fov) - 360.0
+        return total - shift_to_angle(dx_close, image_w, fov) - turn
 
     f_lo, f_hi = residual(lo), residual(hi)
     if f_lo * f_hi > 0:
@@ -156,7 +160,7 @@ def suggest_loop_pose(steps: list["Step"], image_w: int, peak_of,
     cum, best = 0.0, None
     for s in steps:
         cum += shift_to_angle(s.dx, image_w, fov_guess)
-        if cum >= min_span:
+        if abs(cum) >= min_span:      # abs: a Left sweep accumulates negative
             peak = peak_of(s.pose_b)
             if best is None or peak > best[1]:
                 best = (s.pose_b, peak)
@@ -231,6 +235,10 @@ def demo() -> None:
 
     assert solve_fov(dx_steps, dx_close, W, lo=80.0, hi=120.0) is None
 
+    # a Left sweep is the same measurement mirrored
+    left = solve_fov([-dx for dx in dx_steps], -dx_close, W)
+    assert left is not None and abs(left - TRUE_FOV) < 1e-6, left
+
     # ── azimuths: cumulative, and the dropped step stays local ───────────────
     steps = [Step(20 + i, 21 + i, dx, 0.0, 1.0) for i, dx in enumerate(dx_steps)]
     az = pose_azimuths(steps, W, TRUE_FOV, anchor_pose=20, anchor_az=100.0)
@@ -244,6 +252,8 @@ def demo() -> None:
     fake_peaks[48], fake_peaks[49] = 0.05, 0.16
     got_loop = suggest_loop_pose(steps, W, fake_peaks.get, TRUE_FOV)
     assert got_loop == (49, 0.16), got_loop
+    mirrored = [s._replace(dx=-s.dx) for s in steps]
+    assert suggest_loop_pose(mirrored, W, fake_peaks.get, TRUE_FOV) == (49, 0.16)
 
     # ── anchor ───────────────────────────────────────────────────────────────
     assert abs(anchor_from_click(W / 2, W, TRUE_FOV, 90.0) - 90.0) < 1e-9
