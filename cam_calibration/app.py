@@ -26,4 +26,6 @@ Set the Pi IP in the sidebar, then use the pages:
    stored as a camera preset.
 1. **Pose calibration** — measure the real rotation of every step, fit the real
    FOV by loop closure, anchor on one known landmark, export `calibration.csv`.
+2. **Pose selection** — pick the poses to patrol, check the sector they cover on
+   a map, push them as presets and export `selected_poses.json`.
 """)

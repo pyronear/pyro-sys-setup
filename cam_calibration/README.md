@@ -115,6 +115,32 @@ uv run python pose_azimuth.py   # self-check, incl. the full pipeline on rendere
 uv run python pixel_shift.py    # click-based cross-check helpers
 ```
 
+## Page 2 — Pose selection
+
+Pick the poses the camera will patrol. Consecutive poses overlap heavily, so
+only some of them are kept; `Keep 1 pose every N` does that in one click.
+
+The FOV comes from `calibration.csv`, so the cones drawn on the map are the
+measured ones. Coverage is checked as you select: the page states the smallest
+overlap, or the size of the blind sector when the selection leaves a hole.
+
+`Set presets` moves the camera to each selected pose and stores it as presets
+`0..N-1`, **overwriting whatever the patrol uses today**. It asks for
+confirmation and shows the mapping first. Nothing restarts the patrol
+afterwards, do it yourself.
+
+Export writes `captures/<pi_ip>/selected_poses.json`, keyed `pose_NN` so the
+alert-API push script can read it.
+
+Coverage on snow-valley-02, FOV 51.4°, step 12.3°:
+
+| selection | poses | smallest overlap |
+|---|---|---|
+| every pose | 35 | 38.3° |
+| 1 in 2 | 18 | 25.5° |
+| 1 in 3 | 12 | 13.4° |
+| 1 in 4 | 9 | 0.7° |
+
 ## Next steps
 
-- Select the poses to keep and push them to the camera as presets
+- Push the selected azimuths to the alert API

@@ -214,6 +214,14 @@ class Landmark(NamedTuple):
 RESIDUAL_DEG = 0.5
 
 
+def blind_gaps(azimuths: list[float], fov: float) -> list[float]:
+    """Uncovered sector after each pose, going round the circle. A positive
+    value is a hole a fire can sit in; a negative one is the overlap."""
+    ordered = sorted(a % 360.0 for a in azimuths)
+    return [((b - a) % 360.0) - fov
+            for a, b in zip(ordered, ordered[1:] + ordered[:1])]
+
+
 def anchor_from_landmarks(steps: list[Step], image_w: int, fov: float,
                           landmarks: list[Landmark]) -> tuple[dict[int, float], list[float]]:
     """Azimuth of every pose from one or more landmarks of known azimuth.
@@ -307,6 +315,17 @@ def demo() -> None:
     assert got_loop == (49, 0.16), got_loop
     mirrored = [s._replace(dx=-s.dx) for s in steps]
     assert suggest_loop_pose(mirrored, W, fake_peaks.get, TRUE_FOV) == (49, 0.16)
+
+    # ── coverage ─────────────────────────────────────────────────────────────
+    # four poses 90deg apart, each seeing 100deg: 10deg of overlap all round
+    assert blind_gaps([0.0, 90.0, 180.0, 270.0], 100.0) == [-10.0] * 4
+    # the same four seeing only 80deg leave four holes
+    assert blind_gaps([0.0, 90.0, 180.0, 270.0], 80.0) == [10.0] * 4
+    # order does not matter, and the wrap-around gap is counted once
+    assert blind_gaps([200.0, 10.0], 60.0) == [130.0, 110.0]
+    # gaps come back in ascending azimuth: after 10deg a 310deg hole, then
+    # the wrap from 350deg back to 10deg overlaps by 10deg
+    assert blind_gaps([350.0, 10.0], 30.0) == [310.0, -10.0]
 
     # ── landmarks ────────────────────────────────────────────────────────────
     def seen_at(landmark_az: float, pose: int) -> float:
