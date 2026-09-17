@@ -153,32 +153,38 @@ for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
             st.error(f"Pose(s) {clobbered} sit inside presets 0–{len(chosen) - 1}: "
                      "they would be overwritten before the camera visits them. "
                      "Capture the sweep from a higher start pose.")
-        elif not st.session_state.get(confirm):
-            if st.button(f"Set presets on {cam_ip}", key=f"btn_{cam_ip}"):
-                st.session_state[confirm] = True
-                st.rerun()
         else:
-            st.warning(f"This overwrites presets **0–{len(chosen) - 1}** on "
-                       f"`{cam_ip}`, whatever the patrol uses today.  \n{mapping}")
-            ok, cancel = st.columns(2)
-            if ok.button("Confirm", key=f"ok_{cam_ip}", type="primary", width="stretch"):
-                with st.status(f"Setting presets on {cam_ip}…", expanded=True) as status:
-                    client = PyroCameraAPIClient(f"http://{pi_ip}:8081", timeout=60.0)
-                    try:
-                        client.stop_patrol(cam_ip)
-                        for new_idx, r in enumerate(chosen):
-                            st.write(f"pose {r['pose']} → preset {new_idx}")
-                            client.goto_preset(cam_ip, pose_id=r["pose"], speed=64)
-                            time.sleep(3)
-                            client.set_preset(cam_ip, idx=new_idx)
-                        status.update(label=f"{len(chosen)} presets set — restart "
-                                            "the patrol yourself.", state="complete")
-                    except Exception as e:
-                        status.update(label=f"Error: {e}", state="error")
-                st.session_state[confirm] = False
-            if cancel.button("Cancel", key=f"no_{cam_ip}", width="stretch"):
-                st.session_state[confirm] = False
-                st.rerun()
+            # no st.rerun() anywhere in this loop: it would drop the state of
+            # the other cameras' boxes, not yet drawn in this run
+            if st.button(f"Set presets on {cam_ip}", key=f"btn_{cam_ip}",
+                         disabled=bool(st.session_state.get(confirm))):
+                st.session_state[confirm] = True
+            box = st.empty()
+            if st.session_state.get(confirm):
+                with box.container():
+                    st.warning(f"This overwrites presets **0–{len(chosen) - 1}** on "
+                               f"`{cam_ip}`, whatever the patrol uses today.  \n{mapping}")
+                    ok, cancel = st.columns(2)
+                    go = ok.button("Confirm", key=f"ok_{cam_ip}", type="primary", width="stretch")
+                    if cancel.button("Cancel", key=f"no_{cam_ip}", width="stretch"):
+                        st.session_state[confirm] = False
+                        box.empty()
+                if go:
+                    with st.status(f"Setting presets on {cam_ip}…", expanded=True) as status:
+                        client = PyroCameraAPIClient(f"http://{pi_ip}:8081", timeout=60.0)
+                        try:
+                            client.stop_patrol(cam_ip)
+                            for new_idx, r in enumerate(chosen):
+                                st.write(f"pose {r['pose']} → preset {new_idx}")
+                                client.goto_preset(cam_ip, pose_id=r["pose"], speed=64)
+                                time.sleep(3)
+                                client.set_preset(cam_ip, idx=new_idx)
+                            status.update(label=f"{len(chosen)} presets set — restart "
+                                                "the patrol yourself.", state="complete")
+                        except Exception as e:
+                            status.update(label=f"Error: {e}", state="error")
+                    st.session_state[confirm] = False
+                    box.empty()
     st.divider()
 
 # ── coverage of the whole site: the cameras share the mast, so a sector one
