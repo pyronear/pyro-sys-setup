@@ -65,6 +65,14 @@ def cone(lat: float, lon: float, az: float, fov: float, range_m: float):
     return pts
 
 
+@st.cache_data(show_spinner=False)
+def thumbnail(path: str) -> Image.Image:
+    """Every checkbox click reruns the page: decode each capture once."""
+    img = Image.open(path)
+    img.thumbnail((THUMB_WIDTH, THUMB_WIDTH))
+    return img
+
+
 # ── station position, shared by every camera on the Pi ────────────────────────
 saved_path = base / "selected_poses.json"
 saved = json.loads(saved_path.read_text()) if saved_path.exists() else {}
@@ -87,11 +95,23 @@ for (rgb, hexcolor), cam_dir in zip(CAM_COLORS, cam_dirs):
     cam_ip = cam_dir.name
     rows, fov = read_calibration(cam_dir)
     images = latest_per_pose(cam_dir / "images")
-    sel_key = f"sel_{cam_ip}"
-    if sel_key not in st.session_state:
-        st.session_state[sel_key] = {int(p.split("_")[1])
-                                     for p in saved.get(cam_ip, {}).get("poses", {})}
-    selected = st.session_state[sel_key]
+
+    # the checkboxes are the selection: a keyed widget keeps its own state
+    # across reruns whatever `value=` says, so Apply/Clear write the keys
+    def chk(pose: int) -> str:
+        return f"chk_{cam_ip}_{pose}"
+
+    saved_poses = {int(p.split("_")[1]) for p in saved.get(cam_ip, {}).get("poses", {})}
+    for r in rows:
+        st.session_state.setdefault(chk(r["pose"]), r["pose"] in saved_poses)
+
+    def set_all(keep):
+        for i, r in enumerate(rows):
+            st.session_state[chk(r["pose"])] = keep(i)
+        st.rerun()
+
+    selected = {r["pose"] for r in rows if st.session_state[chk(r["pose"])]}
+    st.session_state[f"sel_{cam_ip}"] = selected      # read by the map and the export
 
     st.markdown(f"<span style='border-left:4px solid {hexcolor}; padding-left:8px'>"
                 f"<b>{cam_ip}</b> — {len(selected)} of {len(rows)} poses, "
@@ -101,24 +121,17 @@ for (rgb, hexcolor), cam_dir in zip(CAM_COLORS, cam_dirs):
     c1, c2, c3 = st.columns([1, 1, 4])
     every = c1.number_input("Keep 1 pose every", 1, 10, 2, key=f"every_{cam_ip}")
     if c2.button("Apply", key=f"apply_{cam_ip}", width="stretch"):
-        st.session_state[sel_key] = {r["pose"] for r in rows[::int(every)]}
-        st.rerun()
+        set_all(lambda i: i % int(every) == 0)
     if c3.button("Clear", key=f"clear_{cam_ip}"):
-        st.session_state[sel_key] = set()
-        st.rerun()
+        set_all(lambda i: False)
 
     cols = st.columns(COLS_PER_ROW)
     for i, row in enumerate(rows):
         with cols[i % COLS_PER_ROW]:
             path = images.get(row["pose"])
             if path:
-                img = Image.open(path)
-                img.thumbnail((THUMB_WIDTH, THUMB_WIDTH))
-                st.image(img)
-            checked = st.checkbox(f"{row['pose']} · {row['az']:.0f}°",
-                                  value=row["pose"] in selected,
-                                  key=f"chk_{cam_ip}_{row['pose']}")
-            selected.add(row["pose"]) if checked else selected.discard(row["pose"])
+                st.image(thumbnail(str(path)))
+            st.checkbox(f"{row['pose']} · {row['az']:.0f}°", key=chk(row["pose"]))
 
     chosen = [r for r in rows if r["pose"] in selected]
     if chosen:
@@ -133,7 +146,12 @@ for (rgb, hexcolor), cam_dir in zip(CAM_COLORS, cam_dirs):
         # ── push as presets 0..N-1 ────────────────────────────────────────────
         mapping = ", ".join(f"{r['pose']}→{i}" for i, r in enumerate(chosen))
         confirm = f"confirm_{cam_ip}"
-        if not st.session_state.get(confirm):
+        clobbered = [r["pose"] for r in chosen if r["pose"] < len(chosen)]
+        if clobbered:
+            st.error(f"Pose(s) {clobbered} sit inside presets 0–{len(chosen) - 1}: "
+                     "they would be overwritten before the camera visits them. "
+                     "Capture the sweep from a higher start pose.")
+        elif not st.session_state.get(confirm):
             if st.button(f"Set presets on {cam_ip}", key=f"btn_{cam_ip}"):
                 st.session_state[confirm] = True
                 st.rerun()

@@ -218,6 +218,8 @@ def blind_gaps(azimuths: list[float], fov: float) -> list[float]:
     """Uncovered sector after each pose, going round the circle. A positive
     value is a hole a fire can sit in; a negative one is the overlap."""
     ordered = sorted(a % 360.0 for a in azimuths)
+    if len(ordered) == 1:
+        return [360.0 - fov]
     return [((b - a) % 360.0) - fov
             for a, b in zip(ordered, ordered[1:] + ordered[:1])]
 
@@ -326,6 +328,8 @@ def demo() -> None:
     # gaps come back in ascending azimuth: after 10deg a 310deg hole, then
     # the wrap from 350deg back to 10deg overlaps by 10deg
     assert blind_gaps([350.0, 10.0], 30.0) == [310.0, -10.0]
+    # a single pose sees its fov and nothing else
+    assert blind_gaps([100.0], 51.0) == [309.0]
 
     # ── landmarks ────────────────────────────────────────────────────────────
     def seen_at(landmark_az: float, pose: int) -> float:
