@@ -171,8 +171,21 @@ st.subheader("2 · Azimuth anchor")
 st.caption("Click a landmark whose compass azimuth you know (map, survey), then "
            "enter that azimuth.")
 
+idx_key = f"anchor_idx_{cam_dir.name}"
+idx = min(st.session_state.get(idx_key, 0), len(pose_ids) - 1)
+
 a1, a2, a3 = st.columns([1, 1, 2])
-anchor_pose = a1.selectbox("Pose", pose_ids)
+with a1:
+    st.caption("Pose — arrow through the sweep to find your landmark")
+    prev_col, show_col, next_col = st.columns([1, 2, 1])
+    if prev_col.button("◀", disabled=idx == 0, width="stretch"):
+        st.session_state[idx_key] = idx - 1
+        st.rerun()
+    show_col.subheader(pose_ids[idx])
+    if next_col.button("▶", disabled=idx == len(pose_ids) - 1, width="stretch"):
+        st.session_state[idx_key] = idx + 1
+        st.rerun()
+anchor_pose = pose_ids[idx]
 landmark_az = a2.number_input("Landmark azimuth (°)", 0.0, 360.0, 180.0, 0.1)
 disp_w = a3.slider("Display width (px)", 400, 1600, 900, 50,
                    help="Display only — clicks are rescaled to native pixels.")
