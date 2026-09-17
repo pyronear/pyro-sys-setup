@@ -56,14 +56,25 @@ def _parabolic(y0: float, y1: float, y2: float) -> float:
     return 0.0 if d == 0 else 0.5 * (y0 - y2) / d
 
 
-def shift_px(a: np.ndarray, b: np.ndarray) -> tuple[float, float, float]:
+def shift_px(a: np.ndarray, b: np.ndarray, sign: int = 0) -> tuple[float, float, float]:
     """Phase correlation. Returns (dx, dy, peak) where dx > 0 means the scene
-    slid left between a and b, i.e. the camera panned Right."""
+    slid left between a and b, i.e. the camera panned Right.
+
+    `sign` restricts the peak search to one direction of pan. A sweep only ever
+    turns one way, so a step that comes back negative is a false peak — over a
+    repetitive treeline the correlation does pick one. Re-running that step with
+    the sweep's own direction recovers it.
+    """
     fa, fb = np.fft.rfft2(a), np.fft.rfft2(b)
     r = fa * np.conj(fb)
     corr = np.fft.irfft2(r / (np.abs(r) + 1e-12), s=a.shape)
-    iy, ix = np.unravel_index(np.argmax(corr), corr.shape)
     h, w = corr.shape
+    search = corr
+    if sign:
+        lags = np.arange(w)
+        lags = np.where(lags > w / 2, lags - w, lags)
+        search = np.where(lags * sign > 0, corr, -np.inf)
+    iy, ix = np.unravel_index(np.argmax(search), search.shape)
     dx = ix + _parabolic(corr[iy, (ix - 1) % w], corr[iy, ix], corr[iy, (ix + 1) % w])
     dy = iy + _parabolic(corr[(iy - 1) % h, ix], corr[iy, ix], corr[(iy + 1) % h, ix])
     if dx > w / 2:
@@ -79,6 +90,7 @@ class Step(NamedTuple):
     dx: float
     dy: float
     peak: float
+    repaired: bool = False      # re-measured against the sweep direction
 
 
 def measure_steps(folder, band: tuple[float, float] = BAND) -> tuple[list[Step], int]:
@@ -93,6 +105,15 @@ def measure_steps(folder, band: tuple[float, float] = BAND) -> tuple[list[Step],
     for a, b in zip(ids, ids[1:]):
         dx, dy, peak = shift_px(greys[a], greys[b])
         steps.append(Step(a, b, dx, dy, peak))
+
+    # a sweep turns one way only: a step that disagrees with the majority is a
+    # false correlation peak, not the camera reversing. Measure it again, this
+    # time looking only in the direction the sweep actually went.
+    direction = 1 if sorted(s.dx for s in steps)[len(steps) // 2] > 0 else -1
+    for i, s in enumerate(steps):
+        if s.dx * direction < 0:
+            dx, dy, peak = shift_px(greys[s.pose_a], greys[s.pose_b], direction)
+            steps[i] = Step(s.pose_a, s.pose_b, dx, dy, peak, repaired=True)
     return steps, image_w
 
 
@@ -195,6 +216,12 @@ def demo() -> None:
     assert abs(dy) < 0.5, dy
     dx_back, _, _ = shift_px(b * 1.0, a * 1.0)
     assert abs(dx_back + 20) < 0.5, f"panning Left must be negative, got {dx_back}"
+    # the restricted search must stay on its side of zero even when the real
+    # peak is on the other one
+    wrong, _, _ = shift_px(a * 1.0, b * 1.0, sign=-1)
+    assert wrong < 0, wrong
+    right, _, _ = shift_px(a * 1.0, b * 1.0, sign=1)
+    assert abs(right - 20) < 0.5, right
 
     # ── geometry ─────────────────────────────────────────────────────────────
     W = 1280
@@ -294,6 +321,7 @@ def _demo_end_to_end() -> None:
 
         steps, image_w = measure_steps(d)
         assert image_w == W and len(steps) == len(thetas)
+        assert not any(s.repaired for s in steps), "a clean sweep needs no repair"
 
         peaks = {}
 

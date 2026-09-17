@@ -130,11 +130,15 @@ for alt in (int(loop_pose) - 1, int(loop_pose) + 1):
             alt_fovs.append(alt_fov)
             spread.append(f"{alt}: {alt_fov:.2f}°")
 
-angles = [shift_to_angle(s.dx, image_w, fov) for s in used]
+# the fit only spans the loop, but every step is shown: a bad one past the
+# loop pose still lands in the exported azimuths
+angles = [shift_to_angle(s.dx, image_w, fov) for s in steps]
+in_fit = [s.pose_a < int(loop_pose) for s in steps]
+fit_angles = [a for a, keep in zip(angles, in_fit) if keep]
 c2.metric("Fitted FOV", f"{fov:.2f}°",
           help="Measured on this camera at this zoom — never the datasheet value.")
-st.caption(f"Span {first_pose}→{loop_pose}: **{sum(angles):.2f}°** over {len(used)} steps · "
-           f"mean step **{sum(angles) / len(used):.2f}°** · "
+st.caption(f"Span {first_pose}→{loop_pose}: **{sum(fit_angles):.2f}°** over {len(used)} steps · "
+           f"mean step **{sum(fit_angles) / len(used):.2f}°** · "
            + (f"same fit from neighbouring loop poses — {', '.join(spread)}"
               if spread else "no neighbouring loop pose to cross-check"))
 
@@ -144,14 +148,16 @@ if alt_fovs and min(abs(f - fov) for f in alt_fovs) > 1.0:
                "more than 1°) — the closure pair is probably matching the wrong "
                "thing. Try another loop pose, or move the band onto the ground.")
 
-mean_step = sum(angles) / len(angles)      # negative on a Left sweep
-rows = [{"pose": f"{s.pose_a}→{s.pose_b}", "dx (px)": round(s.dx, 1),
+mean_step = sum(fit_angles) / len(fit_angles)      # negative on a Left sweep
+rows = [{"pose": f"{s.pose_a}→{s.pose_b}", "in fit": keep,
+         "dx (px)": round(s.dx, 1),
          "dy (px)": round(s.dy, 1), "angle (°)": round(a, 2),
          "peak": round(s.peak, 3),
          "flag": ("🛑 no rotation" if abs(s.dx) < STILL_PX else
+                  "↩ re-measured" if s.repaired else
                   "⚠ weak match" if s.peak < WEAK_RATIO * med_peak else
                   "⚠ outlier" if abs(a - mean_step) > 0.3 * abs(mean_step) else "")}
-        for s, a in zip(used, angles)]
+        for s, a, keep in zip(steps, angles, in_fit)]
 st.dataframe(rows, width="stretch", hide_index=True)
 
 still = [r["pose"] for r in rows if r["flag"].startswith("🛑")]
@@ -162,6 +168,10 @@ if still:
         "real dropped step is handled correctly — but two frames sharing a fixed "
         "foreground (the mast, a roof) also correlate at zero shift. If the view "
         "did change, move the band above onto the ground and measure again.")
+elif any(s.repaired for s in steps):
+    st.info("A step came back turning against the sweep, which the camera cannot "
+            "do, so it was measured again looking only the way the sweep goes. "
+            "Cross-check it: the poses after it all shift with it.")
 elif any(r["flag"] for r in rows):
     st.warning("Flagged steps are kept as measured — a step that really is short "
                "or long stays local. Re-run the sweep only if an image is unusable.")
