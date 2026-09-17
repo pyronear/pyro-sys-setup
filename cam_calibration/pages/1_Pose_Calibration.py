@@ -19,11 +19,11 @@ from PIL import Image, ImageDraw
 from streamlit_image_coordinates import streamlit_image_coordinates
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+from capture_poses import CAPTURES_DIR
 from pixel_shift import latest_per_pose, to_native
 from pose_azimuth import (BAND, anchor_from_click, closure_shift, measure_steps,
                           pose_azimuths, shift_to_angle, solve_fov, suggest_loop_pose)
 
-CAPTURES_DIR = Path(__file__).parent.parent / "captures"
 STILL_PX = 2.0            # below this the pair reads as "the camera never moved"
 WEAK_RATIO = 0.4          # peak this far under the median: the pair barely matched
 
@@ -43,8 +43,8 @@ cam_dir = img_dir.parent
 poses = latest_per_pose(img_dir)
 st.caption(f"{len(poses)} poses — {min(poses)} … {max(poses)}")
 
-# re-capturing a sweep rewrites the same filenames: keep the newest mtime in the
-# cache keys so measurements never outlive the images they were made from
+# keep the newest mtime in the cache keys so measurements never outlive the
+# images they were made from
 stamp = max(p.stat().st_mtime for p in poses.values())
 
 # ── 1 · measure every step ────────────────────────────────────────────────────

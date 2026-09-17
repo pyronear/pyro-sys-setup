@@ -103,7 +103,8 @@ c5, c6 = st.columns(2)
 width = c5.selectbox("Image width (px)", [1280, 1920, 2560], index=0)
 settle = c6.number_input("Settle after move (s)", value=2.0, step=0.5, min_value=0.0)
 
-st.caption(f"→ poses {int(start_pose)}–{int(start_pose) + int(n_captures) - 1} saved in `{out_dir}`")
+st.caption(f"→ poses {int(start_pose)}–{int(start_pose) + int(n_captures) - 1} saved in `{out_dir}` "
+           "(previous images of this camera are deleted first)")
 
 if st.button("🎬 Run capture loop", type="primary", width="stretch"):
     progress = st.progress(0.0)
@@ -116,6 +117,9 @@ if st.button("🎬 Run capture loop", type="primary", width="stretch"):
 
             def on_pose(i, pose, path):
                 progress.progress((i + 1) / int(n_captures))
+                if path is None:
+                    st.write(f"  ✗ pose {pose} — capture failed, skipped")
+                    return
                 st.write(f"  ✓ pose {pose} → {path.name}")
                 preview.image(str(path), caption=f"pose {pose}", width=480)
 

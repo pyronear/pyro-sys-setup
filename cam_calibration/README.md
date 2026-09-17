@@ -1,7 +1,7 @@
 # Camera calibration
 
-Streamlit app to define the PTZ poses a Pyronear camera must watch, and
-(later) assign an azimuth to each of them.
+Streamlit app to define the PTZ poses a Pyronear camera must watch and give
+each of them a compass azimuth.
 
 Talks to [`pyro_camera_api`](https://github.com/pyronear/pyro-engine/tree/develop/pyro_camera_api)
 running on the Pi (`http://<PI_IP>:8081`).
@@ -21,13 +21,17 @@ Set the Pi IP in the sidebar.
 **Go to a pose** — enter a pose ID, move there, capture one image to check the
 framing (saved under `captures/<pi_ip>/<cam_ip>/checks/`).
 
-**Capture loop** — from a start pose, repeat `n` times:
+**Capture loop** — deletes the previous images of that camera, then from a
+start pose, repeat `n` times:
 
 ```
-capture → save captures/<pi_ip>/<cam_ip>/images/pose_NN.jpg
+capture → save captures/<pi_ip>/<cam_ip>/images/pose_NN_<timestamp>.jpg
         → store current position as preset NN
         → rotate by <step>°
 ```
+
+A capture that still fails after 3 tries is skipped and the sweep goes on: the
+calibration page just sees one longer step there.
 
 Defaults: start pose 20, step 12.5°, 35 captures, width 1280 (HD).
 

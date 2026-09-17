@@ -4,6 +4,11 @@ Pose capture loop for PTZ cameras (pyro_camera_api).
 From a starting preset, for each pose: capture → save locally → store the
 current position as that preset → rotate by `step_deg`.
 
+A run starts by deleting the previous images of the folder: a sweep is only
+consistent with itself. Names carry the capture time, pose_NN_YYYYmmddHHMMSS.jpg.
+A capture that still fails after its retries is skipped, the sweep goes on:
+the missing pose just makes one longer step for the calibration page.
+
 CLI:
     python capture_poses.py --pi-ip 192.168.255.166 --cam <CAM_IP> \
         --start-pose 20 --step 12.5 --n 35
@@ -12,6 +17,8 @@ CLI:
 import argparse
 import time
 from pathlib import Path
+
+from pixel_shift import POSE_RE
 
 CAPTURES_DIR = Path(__file__).parent / "captures"
 
@@ -22,9 +29,9 @@ def pose_dir(pi_ip: str, cam_ip: str) -> Path:
 
 def capture_one(client, cam_ip: str, out_dir: Path, pose: int,
                 width: int = 1280, retries: int = 3, retry_delay: float = 3.0) -> Path:
-    """Capture and save pose_NN.jpg. Retries: captures drop over VPN."""
+    """Capture and save pose_NN_<timestamp>.jpg. Retries: captures drop over VPN."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / f"pose_{pose:02d}.jpg"
+    path = out_dir / f"pose_{pose:02d}_{time.strftime('%Y%m%d%H%M%S')}.jpg"
     for attempt in range(1, retries + 1):
         try:
             client.capture_image(cam_ip, anonymize=False, width=width).save(path, quality=95)
@@ -38,8 +45,14 @@ def capture_one(client, cam_ip: str, out_dir: Path, pose: int,
 def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
                   step_deg: float = 12.5, n_captures: int = 35,
                   direction: str = "Right", width: int = 1280,
-                  settle: float = 2.0, on_pose=None):
-    """Go to `start_pose`, then capture/save/set_preset/rotate `n_captures` times."""
+                  settle: float = 2.0, on_pose=None, retry_delay: float = 3.0):
+    """Go to `start_pose`, then capture/save/set_preset/rotate `n_captures` times.
+
+    Returns one path per pose, None where the capture failed."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob("pose_*.jpg"):
+        old.unlink()
+
     client.goto_preset(cam_ip, pose_id=start_pose, speed=64)
     time.sleep(3)
 
@@ -49,7 +62,11 @@ def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
         if i:
             client.move_by_degrees(cam_ip, direction=direction, degrees=step_deg)
             time.sleep(settle)
-        path = capture_one(client, cam_ip, out_dir, pose, width=width)
+        try:
+            path = capture_one(client, cam_ip, out_dir, pose, width=width,
+                               retry_delay=retry_delay)
+        except Exception:
+            path = None                   # skip, keep the sweep aligned
         client.set_preset(cam_ip, idx=pose)
         paths.append(path)
         if on_pose:
@@ -62,8 +79,9 @@ def _self_check():
     from PIL import Image
 
     class FakeClient:
-        def __init__(self):
+        def __init__(self, fail_pose=None):
             self.moves, self.presets, self.goto = [], [], None
+            self.fail_pose, self.captures = fail_pose, 0
 
         def goto_preset(self, cam_ip, pose_id, speed=50):
             self.goto = pose_id
@@ -72,6 +90,9 @@ def _self_check():
             self.moves.append((direction, degrees))
 
         def capture_image(self, cam_ip, anonymize=True, width=None):
+            self.captures += 1
+            if len(self.presets) == self.fail_pose:
+                raise OSError("dropped over VPN")
             return Image.new("RGB", (width or 8, 8))
 
         def set_preset(self, cam_ip, idx=None):
@@ -80,12 +101,24 @@ def _self_check():
     c = FakeClient()
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp)
+        (out / "pose_20_20200101000000.jpg").touch()          # a previous run
         paths = capture_poses(c, "1.2.3.4", out, start_pose=20, step_deg=12.5,
                               n_captures=3, settle=0, width=1280)
+        assert sorted(p.name for p in out.glob("*.jpg")) == \
+            sorted(p.name for p in paths), "old run must be wiped"
     assert c.goto == 20
     assert c.moves == [("Right", 12.5)] * 2, c.moves          # n-1 moves
     assert c.presets == [20, 21, 22], c.presets
-    assert [p.name for p in paths] == ["pose_20.jpg", "pose_21.jpg", "pose_22.jpg"]
+    assert [POSE_RE.search(p.name).group(1) for p in paths] == ["20", "21", "22"]
+    assert all(POSE_RE.search(p.name).group(2) for p in paths), "names carry a timestamp"
+
+    # a capture that keeps failing is skipped, the sweep and the presets go on
+    c = FakeClient(fail_pose=1)
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = capture_poses(c, "1.2.3.4", Path(tmp), n_captures=3, settle=0,
+                              retry_delay=0)
+    assert paths[1] is None and paths[0] and paths[2], paths
+    assert c.presets == [20, 21, 22] and c.captures == 5, (c.presets, c.captures)
     print("self-check ok")
 
 
@@ -113,7 +146,8 @@ def main():
         capture_poses(client, args.cam, pose_dir(args.pi_ip, args.cam),
                       start_pose=args.start_pose, step_deg=args.step,
                       n_captures=args.n, direction=args.direction, width=args.width,
-                      on_pose=lambda i, pose, path: print(f"  {i+1}/{args.n} → {path.name}"))
+                      on_pose=lambda i, pose, path: print(
+                          f"  {i+1}/{args.n} → {path.name if path else 'capture failed, skipped'}"))
     finally:
         client.stop_stream()
 

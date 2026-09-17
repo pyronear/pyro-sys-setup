@@ -25,11 +25,7 @@ from typing import NamedTuple
 import numpy as np
 from PIL import Image
 
-from pixel_shift import latest_per_pose, pixel_to_angle
-
-
-def focal_px(image_w: int, fov_deg: float) -> float:
-    return (image_w / 2) / math.tan(math.radians(fov_deg) / 2)
+from pixel_shift import focal_px, latest_per_pose, pixel_to_angle
 
 
 def shift_to_angle(dx_px: float, image_w: int, fov_deg: float) -> float:
@@ -294,7 +290,7 @@ def _demo_end_to_end() -> None:
     with tempfile.TemporaryDirectory() as d:
         d = Path(d)
         for i, az in enumerate(az_true):
-            render(az).save(d / f"pose_{20 + i:02d}.jpg", quality=95)
+            render(az).save(d / f"pose_{20 + i:02d}_20260917120000.jpg", quality=95)
 
         steps, image_w = measure_steps(d)
         assert image_w == W and len(steps) == len(thetas)
