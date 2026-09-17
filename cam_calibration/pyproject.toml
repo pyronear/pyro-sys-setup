@@ -6,4 +6,6 @@ dependencies = [
     "pyro-camera-api-client @ git+https://github.com/pyronear/pyro-engine.git@develop#subdirectory=pyro_camera_api/client",
     "Pillow",
     "streamlit",
+    "numpy>=2.2.6",
+    "streamlit-image-coordinates>=0.4.1",
 ]

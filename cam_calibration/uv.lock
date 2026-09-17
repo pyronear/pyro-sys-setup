@@ -933,16 +933,21 @@ name = "pyronear-cam-calibration"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
     { name = "pyro-camera-api-client" },
     { name = "streamlit" },
+    { name = "streamlit-image-coordinates" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "numpy", specifier = ">=2.2.6" },
     { name = "pillow" },
     { name = "pyro-camera-api-client", git = "https://github.com/pyronear/pyro-engine.git?subdirectory=pyro_camera_api%2Fclient&rev=develop" },
     { name = "streamlit" },
+    { name = "streamlit-image-coordinates", specifier = ">=0.4.1" },
 ]
 
 [[package]]
@@ -1192,6 +1197,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5d/f8/b2daf7a5f8ae15527daf94406e771bb6075e958a01c3dde9eba79dc3c9a3/streamlit-1.57.0.tar.gz", hash = "sha256:0b028d305c1a1a757071b2c9504966787602842fc8af6e873795ca58d2b4d12f", size = 8678859, upload_time = "2026-04-28T22:13:32.238Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d8/1a/3ca2293d8552bacea3e67e9600d2d1df7df4a325059769ad83d91c279595/streamlit-1.57.0-py3-none-any.whl", hash = "sha256:0d1d41972aeade5637dbb0e7f0eefa5312272f85304923d240a1b1f0475249c8", size = 9194216, upload_time = "2026-04-28T22:13:29.624Z" },
+]
+
+[[package]]
+name = "streamlit-image-coordinates"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1e/19/fe6d7087c27451f0a3d3063180969b77fc58b1fb4ef7db62c4428d15b08a/streamlit_image_coordinates-0.4.1.tar.gz", hash = "sha256:206795398525adeb4288aec983620377d6d700e16789dda26f4ad5c3ce14dad9", size = 6025, upload_time = "2026-08-14T15:12:30.386Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/b4/bb1de84d92cb9f07962dd3559809ec76c1259eb99af99437101088590b30/streamlit_image_coordinates-0.4.1-py3-none-any.whl", hash = "sha256:7cdab1b6d7688eb3c79e8d520f34e9e61c9a22766a9c217ae09f6604f7ba7e7f", size = 7787, upload_time = "2026-08-14T15:12:29.473Z" },
 ]
 
 [[package]]
