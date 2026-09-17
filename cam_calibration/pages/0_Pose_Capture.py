@@ -113,45 +113,66 @@ st.caption(f"→ poses {int(start_pose)}–{int(start_pose) + int(n_captures) - 
            f"`{pose_dir(pi_ip, '<cam>')}` (previous images of each camera are deleted first)"
            + (" — from the presets already on the camera" if from_presets else ""))
 
+# The run lives in session state: the capture threads only push events to a
+# queue (Streamlit widgets are not usable from other threads) and the page
+# redraws itself every second while they work, so a Stop button stays live.
+run = st.session_state.get("capture_run")
+running = bool(run and run["worker"].is_alive())
+
 if st.button("🎬 Recapture existing poses" if from_presets else "🎬 Run capture loop",
-             type="primary", width="stretch", disabled=not loop_cams):
+             type="primary", width="stretch", disabled=not loop_cams or running):
     for cam in loop_cams:
         client.stop_patrol(cam)
-
-    # one column per camera; the capture threads only push events, the page
-    # thread draws them — Streamlit widgets are not usable from other threads
-    cols = st.columns(len(loop_cams))
-    ui = {}
-    for col, cam in zip(cols, loop_cams):
-        with col:
-            st.markdown(f"**{cam}**")
-            ui[cam] = (st.progress(0.0), st.empty(), st.empty())
-
-    events, results = queue.Queue(), {}
+    events, results, stop = queue.Queue(), {}, threading.Event()
     worker = threading.Thread(
         target=lambda: results.update(capture_in_parallel(
             client, loop_cams, lambda cam: pose_dir(pi_ip, cam),
             on_pose=lambda cam, i, pose, path: events.put((cam, i, pose, path)),
             start_pose=int(start_pose), step_deg=float(step_deg),
             n_captures=int(n_captures), direction=direction,
-            width=int(width), settle=float(settle), from_presets=from_presets)),
+            width=int(width), settle=float(settle), from_presets=from_presets,
+            stop=stop)),
         daemon=True)
     worker.start()
-    while worker.is_alive() or not events.empty():
-        try:
-            cam, i, pose, path = events.get(timeout=0.5)
-        except queue.Empty:
-            continue
-        bar, line, preview = ui[cam]
-        bar.progress((i + 1) / int(n_captures))
-        if path is None:
-            line.write(f"✗ pose {pose} — capture failed, skipped")
-        else:
-            line.write(f"✓ {i + 1}/{int(n_captures)} · pose {pose} → {path.name}")
-            preview.image(str(path), caption=f"pose {pose}", width="stretch")
+    st.session_state["capture_run"] = run = {
+        "worker": worker, "events": events, "results": results, "stop": stop,
+        "cams": loop_cams, "n": int(n_captures), "last": {}}
+    running = True
 
-    for cam, r in results.items():
+if run:
+    while True:                                   # drain what the threads sent
+        try:
+            cam, i, pose, path = run["events"].get_nowait()
+        except queue.Empty:
+            break
+        run["last"][cam] = (i, pose, path)
+
+    if running and st.button("⏹ Stop after the current pose", width="stretch"):
+        run["stop"].set()
+
+    for col, cam in zip(st.columns(len(run["cams"])), run["cams"]):
+        with col:
+            st.markdown(f"**{cam}**")
+            if cam not in run["last"]:
+                st.progress(0.0)
+                continue
+            i, pose, path = run["last"][cam]
+            st.progress((i + 1) / run["n"])
+            if path is None:
+                st.write(f"✗ pose {pose} — capture failed, skipped")
+            else:
+                st.write(f"✓ {i + 1}/{run['n']} · pose {pose} → {path.name}")
+                st.image(str(path), caption=f"pose {pose}", width="stretch")
+
+    if running:
+        st.caption("stopping…" if run["stop"].is_set() else "capturing…")
+        time.sleep(1)
+        st.rerun()
+
+    for cam, r in run["results"].items():
         if isinstance(r, Exception):
             st.error(f"{cam}: {r}")
         else:
-            st.success(f"{cam}: {sum(p is not None for p in r)}/{len(r)} images in {pose_dir(pi_ip, cam)}")
+            done = sum(p is not None for p in r)
+            st.success(f"{cam}: {done}/{len(r)} images in {pose_dir(pi_ip, cam)}"
+                       + (f" — stopped after {len(r)} of {run['n']} poses" if len(r) < run["n"] else ""))

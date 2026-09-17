@@ -54,11 +54,12 @@ def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
                   step_deg: float = 12.5, n_captures: int = 35,
                   direction: str = "Right", width: int = 1280,
                   settle: float = 2.0, on_pose=None, retry_delay: float = 3.0,
-                  from_presets: bool = False):
+                  from_presets: bool = False, stop: threading.Event | None = None):
     """Go to `start_pose`, then capture/save/set_preset/rotate `n_captures` times.
     With `from_presets`, go to each existing preset and capture it instead.
+    `stop`, once set, ends the run before the next pose.
 
-    Returns one path per pose, None where the capture failed."""
+    Returns one path per pose done, None where the capture failed."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("pose_*.jpg"):
         old.unlink()
@@ -74,6 +75,8 @@ def capture_poses(client, cam_ip: str, out_dir: Path, start_pose: int = 20,
 
     paths = []
     for i in range(n_captures):
+        if stop is not None and stop.is_set():
+            break
         pose = start_pose + i
         if from_presets:
             client.goto_preset(cam_ip, pose_id=pose, speed=64)
@@ -195,6 +198,13 @@ def _self_check():
     assert len(res["a"]) == 3 and len(res["b"]) == 3, res
     assert isinstance(res["bad"], OSError), res["bad"]
     assert sorted(events) == sorted([(cam, p) for cam in "ab" for p in (20, 21, 22)]), events
+
+    # stop: set after the first pose, the run ends before the next one
+    c, stop = FakeClient(), threading.Event()
+    with tempfile.TemporaryDirectory() as tmp:
+        paths = capture_poses(c, "1.2.3.4", Path(tmp), n_captures=5, settle=0, stop=stop,
+                              on_pose=lambda i, pose, path: stop.set())
+    assert len(paths) == 1 and c.moves == [], (paths, c.moves)
     print("self-check ok")
 
 
