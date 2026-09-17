@@ -26,7 +26,7 @@ from capture_poses import CAPTURES_DIR
 from pixel_shift import latest_per_pose, to_native
 from pose_azimuth import (BAND, RESIDUAL_DEG, STILL_PX, Landmark, anchor_from_landmarks,
                           closure_shift, measure_steps, shift_to_angle, solve_fov,
-                          suggest_loop_pose)
+                          suggest_band, suggest_loop_pose)
 
 WEAK_RATIO = 0.4          # peak this far under the median: the pair barely matched
 
@@ -56,8 +56,23 @@ stamp = max(p.stat().st_mtime for p in poses.values()), Path(pose_azimuth.__file
 st.subheader("1 · Measured steps")
 
 
+@st.cache_data(show_spinner="Trying several bands…")
+def _best_band(folder: str, stamp):
+    return suggest_band(Path(folder))
+
+
+band_key = f"band_{cam_dir.name}"
+st.session_state.setdefault(band_key, BAND)
+if st.button("🔍 Find the best band", help="Try several row bands and keep the one "
+             "whose steps agree with each other best. Use it when steps read zero "
+             "or wildly different."):
+    best, ok, n = _best_band(str(img_dir), stamp)
+    st.session_state[band_key] = best
+    st.toast(f"Band {best[0]:.2f}–{best[1]:.2f}: {ok}/{n} consistent steps")
+    st.rerun()
+
 band = st.slider(
-    "Rows used for correlation (fraction of image height)", 0.0, 1.0, BAND, 0.01,
+    "Rows used for correlation (fraction of image height)", 0.0, 1.0, key=band_key, step=0.01,
     help="Keep the ground. The sky is worse than useless — the clouds move "
          "between two captures — and the bottom of the frame often holds the "
          "mast the camera sits on, identical in every pose, which drags the "
@@ -171,8 +186,9 @@ if still:
         f"Zero rotation measured on {', '.join(still)}. **Open those two frames "
         "and check by eye.** The camera does silently drop a PTZ command, and a "
         "real dropped step is handled correctly — but two frames sharing a fixed "
-        "foreground (the mast, a roof) also correlate at zero shift. If the view "
-        "did change, move the band above onto the ground and measure again.")
+        "foreground (the mast, a roof, dirt on the lens) also correlate at zero "
+        "shift. If the view did change, click **Find the best band** above, or "
+        "move the band onto the scene yourself, and measure again.")
 elif any(s.repaired for s in steps):
     st.info("A step came back turning against the sweep, which the camera cannot "
             "do, so it was measured again looking only the way the sweep goes. "

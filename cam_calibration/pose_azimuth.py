@@ -122,6 +122,29 @@ def measure_steps(folder, band: tuple[float, float] = BAND) -> tuple[list[Step],
     return steps, image_w
 
 
+# Row bands tried by suggest_band, top to bottom fractions. The scene of a
+# tilted-down camera sits somewhere between the sky and a near foreground.
+BAND_CANDIDATES = [(0.55, 0.92), (0.40, 0.80), (0.30, 0.70), (0.30, 0.60),
+                   (0.25, 0.55), (0.20, 0.50), (0.45, 0.70)]
+
+
+def suggest_band(folder, candidates=BAND_CANDIDATES) -> tuple[tuple[float, float], int, int]:
+    """The band whose steps agree with each other best: most steps within
+    30% of the median shift (a fixed foreground or the sky drag steps to
+    zero), ties broken by the median correlation peak. Returns
+    (band, consistent steps, total steps)."""
+    best = None
+    for band in candidates:
+        steps, _ = measure_steps(folder, band)
+        dxs = [abs(s.dx) for s in steps]
+        med = sorted(dxs)[len(dxs) // 2]
+        ok = sum(abs(x - med) < 0.3 * med for x in dxs)
+        peak = sorted(s.peak for s in steps)[len(steps) // 2]
+        if best is None or (ok, peak) > (best[0], best[1]):
+            best = (ok, peak, band, len(steps))
+    return best[2], best[0], best[3]
+
+
 def closure_shift(folder, pose_a: int, pose_b: int,
                   band: tuple[float, float] = BAND) -> tuple[float, float]:
     """(shift, correlation peak) between the two ends of the loop, which overlap
@@ -438,6 +461,24 @@ def _demo_end_to_end() -> None:
     assert abs(measured[12] - thetas[12]) < 0.3, measured[12]
     # and it stays local: the poses after it are not shifted by it
     assert abs((az[29] - az[28]) - STEP) < 0.3
+
+    # a fixed foreground (mast, near canopy, dirt on the lens) in the bottom
+    # 45% of every frame drags the default band to zero: suggest_band must
+    # find a band above it
+    fixed = (rng.random((int(H * 0.45), W)) * 255).astype(np.uint8)
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        for i, az_i in enumerate(az_true):
+            frame = np.asarray(render(az_i).convert("L")).copy()
+            frame[H - fixed.shape[0]:] = fixed
+            Image.fromarray(frame).convert("RGB").save(d / f"pose_{20 + i:02d}_20260917120000.jpg", quality=95)
+        bad, _ = measure_steps(d)
+        assert sum(abs(s.dx) < 2 for s in bad) > 20, "the default band must be fooled here"
+        band, ok, n = suggest_band(d)
+        # the dropped and the long step are off the median whatever the band
+        assert band[1] <= 0.6 and ok == n - 2, (band, ok, n)
+        good, _ = measure_steps(d, band)
+        assert sum(abs(s.dx) < 2 for s in good) == 1, "only the real dropped step reads zero"
 
 
 if __name__ == "__main__":
