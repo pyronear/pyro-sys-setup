@@ -202,9 +202,31 @@ def pose_azimuths(steps: list[Step], image_w: int, fov: float,
     return {p: (a + offset) % 360.0 for p, a in az.items()}
 
 
-def anchor_from_click(click_x: float, image_w: int, fov: float, landmark_az: float) -> float:
-    """Azimuth of the frame centre, from a landmark clicked at `click_x`."""
-    return (landmark_az - pixel_to_angle(click_x, image_w, fov)) % 360.0
+class Landmark(NamedTuple):
+    pose: int
+    x: float           # native pixel column where it was clicked
+    az: float          # its compass azimuth, read on a map or surveyed
+    y: float = 0.0     # only to draw the marker back
+
+
+# A landmark disagreeing with the others by more than this is misread on the
+# map, or clicked on the wrong thing: the sweep itself closes to 0.3 degrees.
+RESIDUAL_DEG = 0.5
+
+
+def anchor_from_landmarks(steps: list[Step], image_w: int, fov: float,
+                          landmarks: list[Landmark]) -> tuple[dict[int, float], list[float]]:
+    """Azimuth of every pose from one or more landmarks of known azimuth.
+
+    Each landmark votes for the one global offset of the sweep. The median vote
+    wins, so a landmark misread on the map shows up as its own residual instead
+    of dragging every pose. Returns (azimuths, residual of each landmark)."""
+    az0 = pose_azimuths(steps, image_w, fov, steps[0].pose_a, 0.0)
+    votes = [(lm.az - pixel_to_angle(lm.x, image_w, fov) - az0[lm.pose]) % 360.0
+             for lm in landmarks]
+    votes = [votes[0] + (v - votes[0] + 180.0) % 360.0 - 180.0 for v in votes]  # unwrap
+    offset = float(np.median(votes))
+    return {p: (a + offset) % 360.0 for p, a in az0.items()}, [v - offset for v in votes]
 
 
 # ── self-check ────────────────────────────────────────────────────────────────
@@ -286,10 +308,23 @@ def demo() -> None:
     mirrored = [s._replace(dx=-s.dx) for s in steps]
     assert suggest_loop_pose(mirrored, W, fake_peaks.get, TRUE_FOV) == (49, 0.16)
 
-    # ── anchor ───────────────────────────────────────────────────────────────
-    assert abs(anchor_from_click(W / 2, W, TRUE_FOV, 90.0) - 90.0) < 1e-9
-    off = anchor_from_click(W, W, TRUE_FOV, 90.0)       # landmark on the right edge
-    assert abs(off - (90.0 - TRUE_FOV / 2)) < 1e-9, off
+    # ── landmarks ────────────────────────────────────────────────────────────
+    def seen_at(landmark_az: float, pose: int) -> float:
+        """Pixel column where a landmark lands in a pose, on the true camera."""
+        return W / 2 + f * math.tan(math.radians(landmark_az - az[pose]))
+
+    one = [Landmark(20, seen_at(90.0, 20), 90.0)]
+    az1, res = anchor_from_landmarks(steps, W, TRUE_FOV, one)
+    assert res == [0.0] and all(abs(az1[p] - az[p]) < 1e-6 for p in az), "one landmark = the anchor"
+    # a second one on the other side of the sweep agrees, a misread one stands out
+    three = one + [Landmark(35, seen_at(275.0, 35), 275.0), Landmark(45, seen_at(30.0, 45), 33.0)]
+    az3, res = anchor_from_landmarks(steps, W, TRUE_FOV, three)
+    assert abs(res[0]) < 1e-6 and abs(res[1]) < 1e-6 and abs(res[2] - 3.0) < 1e-6, res
+    assert all(abs(az3[p] - az[p]) < 1e-6 for p in az), "the median ignores the bad one"
+    # wrap-around: a landmark just past north votes with the others
+    wrap = [Landmark(20, seen_at(359.5, 20), 359.5), Landmark(21, seen_at(0.5, 21), 0.5)]
+    _, res = anchor_from_landmarks(steps, W, TRUE_FOV, wrap)
+    assert max(abs(r) for r in res) < 1e-6, res
 
     _demo_end_to_end()
     print("pose_azimuth: all checks passed")

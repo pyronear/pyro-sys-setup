@@ -66,8 +66,12 @@ is measured rather than assumed.
 
    The closing pose is picked as the one still correlating best with the first —
    strongest overlap. Neighbouring closing poses are fitted too and must agree.
-3. **Anchor** — click one landmark of known azimuth; that fixes the absolute
-   direction of the whole sweep.
+3. **Landmarks** — click a landmark of known azimuth (map, survey) and add it;
+   they are kept in `captures/<pi_ip>/<cam_ip>/landmarks.json`. One landmark
+   fixes the absolute direction of the whole sweep. Two or three, far apart in
+   azimuth, check each other: each one votes for the sweep offset, the median
+   wins, and a landmark whose residual exceeds 0.5° is misread on the map or
+   clicked on the wrong thing — remove it with its 🗑 button.
 
 Azimuths are the **cumulative sum** of the measured angles, so a dropped or long
 step stays local instead of shifting every pose after it. The table flags weak

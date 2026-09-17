@@ -6,10 +6,12 @@ Works offline on a capture folder, no camera needed.
   1. measure every step by phase correlation (the commanded angle is not the
      angle the camera turned)
   2. fit the real FOV by loop closure — the sweep overshoots 360°
-  3. click one landmark of known azimuth to anchor the whole sweep
+  3. click landmarks of known azimuth: one anchors the whole sweep, more of
+     them check each other
 """
 
 import csv
+import json
 from pathlib import Path
 import sys
 
@@ -22,8 +24,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pose_azimuth
 from capture_poses import CAPTURES_DIR
 from pixel_shift import latest_per_pose, to_native
-from pose_azimuth import (BAND, STILL_PX, anchor_from_click, closure_shift, measure_steps,
-                          pose_azimuths, shift_to_angle, solve_fov, suggest_loop_pose)
+from pose_azimuth import (BAND, RESIDUAL_DEG, STILL_PX, Landmark, anchor_from_landmarks,
+                          closure_shift, measure_steps, shift_to_angle, solve_fov,
+                          suggest_loop_pose)
 
 WEAK_RATIO = 0.4          # peak this far under the median: the pair barely matched
 
@@ -178,10 +181,19 @@ elif any(r["flag"] for r in rows):
     st.warning("Flagged steps are kept as measured — a step that really is short "
                "or long stays local. Re-run the sweep only if an image is unusable.")
 
-# ── 2 · anchor ────────────────────────────────────────────────────────────────
-st.subheader("2 · Azimuth anchor")
-st.caption("Click a landmark whose compass azimuth you know (map, survey), then "
-           "enter that azimuth.")
+# ── 2 · landmarks ─────────────────────────────────────────────────────────────
+st.subheader("2 · Landmarks")
+st.caption("Click a landmark whose compass azimuth you know (map, survey), enter "
+           "that azimuth, add it. One landmark anchors the sweep. Two or three, far "
+           "apart in azimuth, check the whole calibration against each other.")
+
+lm_path = cam_dir / "landmarks.json"
+landmarks = [Landmark(**d) for d in json.loads(lm_path.read_text())] if lm_path.exists() else []
+
+
+def save_landmarks():
+    lm_path.write_text(json.dumps([lm._asdict() for lm in landmarks], indent=1))
+
 
 idx_key = f"anchor_idx_{cam_dir.name}"
 idx = min(st.session_state.get(idx_key, 0), len(pose_ids) - 1)
@@ -197,42 +209,81 @@ with a1:
     if next_col.button("▶", disabled=idx == len(pose_ids) - 1, width="stretch"):
         st.session_state[idx_key] = idx + 1
         st.rerun()
-anchor_pose = pose_ids[idx]
-landmark_az = a2.number_input("Landmark azimuth (°)", 0.0, 360.0, 180.0, 0.1)
+lm_pose = pose_ids[idx]
+lm_az = a2.number_input("Landmark azimuth (°)", 0.0, 360.0, 180.0, 0.1)
 disp_w = a3.slider("Display width (px)", 400, 1600, 900, 50,
                    help="Display only — clicks are rescaled to native pixels.")
 
-key = f"anchor_{cam_dir.name}_{anchor_pose}"
-img = Image.open(poses[anchor_pose])
-shown = img
-if st.session_state.get(key):
-    x, y = st.session_state[key]
-    shown = img.copy()
-    d = ImageDraw.Draw(shown)
-    d.line([(x - 16, y), (x + 16, y)], fill=(255, 80, 80), width=3)
-    d.line([(x, y - 16), (x, y + 16)], fill=(255, 80, 80), width=3)
-    d.ellipse([(x - 16, y - 16), (x + 16, y + 16)], outline=(255, 80, 80), width=2)
 
-click = streamlit_image_coordinates(shown, width=disp_w, key=f"click_{key}")
+def cross(draw, x, y, colour):
+    draw.line([(x - 16, y), (x + 16, y)], fill=colour, width=3)
+    draw.line([(x, y - 16), (x, y + 16)], fill=colour, width=3)
+    draw.ellipse([(x - 16, y - 16), (x + 16, y + 16)], outline=colour, width=2)
+
+
+click_key = f"click_{cam_dir.name}_{lm_pose}"
+gen_key = f"clickgen_{cam_dir.name}"           # bumped to reset the component after an add
+pending = st.session_state.get(click_key)
+img = Image.open(poses[lm_pose])
+shown = img.copy()
+draw = ImageDraw.Draw(shown)
+for lm in landmarks:
+    if lm.pose == lm_pose:
+        cross(draw, lm.x, lm.y, (80, 220, 80))          # stored: green
+if pending:
+    cross(draw, *pending, (255, 80, 80))                 # not added yet: red
+
+click = streamlit_image_coordinates(shown, width=disp_w,
+                                    key=f"img_{click_key}_{st.session_state.get(gen_key, 0)}")
 if click:
     native = to_native(click, img.width, img.height)
-    if st.session_state.get(key) != native:
-        st.session_state[key] = native
+    if native != pending:
+        st.session_state[click_key] = native
         st.rerun()
 
-if not st.session_state.get(key):
-    st.info("Click the landmark in the image above.")
+if pending and st.button(f"➕ Add landmark — pose {lm_pose}, x={pending[0]:.0f}, {lm_az:.1f}°",
+                         type="primary"):
+    landmarks.append(Landmark(lm_pose, pending[0], lm_az, pending[1]))
+    save_landmarks()
+    del st.session_state[click_key]
+    st.session_state[gen_key] = st.session_state.get(gen_key, 0) + 1
+    st.rerun()
+
+if not landmarks:
+    st.info("Click the landmark in the image above, then add it.")
     st.stop()
 
-click_x = st.session_state[key][0]
-anchor_az = anchor_from_click(click_x, img.width, fov, landmark_az)
-st.caption(f"Landmark at x={click_x:.0f}/{img.width} → centre of pose "
-           f"{anchor_pose} points at **{anchor_az:.2f}°**")
+az, residuals = anchor_from_landmarks(steps, image_w, fov, landmarks)
+st.markdown(f"**{len(landmarks)} landmark{'s' if len(landmarks) > 1 else ''}** in `{lm_path.name}`")
+for i, (lm, r) in enumerate(zip(landmarks, residuals)):
+    c_txt, c_del = st.columns([8, 1])
+    c_txt.write(f"pose {lm.pose} · x={lm.x:.0f} · {lm.az:.1f}° · residual **{r:+.2f}°**"
+                + (" ⚠ disagrees with the others" if abs(r) > RESIDUAL_DEG else ""))
+    if c_del.button("🗑", key=f"del_lm_{i}", help="Remove this landmark"):
+        del landmarks[i]
+        save_landmarks()
+        st.rerun()
+
+worst = max(abs(r) for r in residuals)
+if len(landmarks) == 1:
+    st.caption("One landmark anchors the sweep but nothing checks it: add another "
+               "one far away in azimuth to get a residual.")
+elif len(landmarks) == 2 and worst > RESIDUAL_DEG:
+    st.warning(f"The two landmarks disagree by {2 * worst:.2f}°. One of them is misread "
+               "on the map or clicked on the wrong thing, and two cannot tell which: "
+               "add a third one, the odd one out will show.")
+elif worst > RESIDUAL_DEG:
+    st.warning(f"A landmark disagrees with the others by {worst:.2f}°. The sweep itself "
+               "closes to a few tenths, so a residual this size is a landmark misread "
+               "on the map or clicked on the wrong thing: remove it. Residuals that "
+               "grow with the distance from the others point at the FOV instead.")
+else:
+    st.success(f"All landmarks agree within {worst:.2f}°: steps, FOV and anchor "
+               "corroborate each other.")
 
 # ── 3 · result ────────────────────────────────────────────────────────────────
 st.subheader("3 · Pose azimuths")
 
-az = pose_azimuths(steps, image_w, fov, int(anchor_pose), anchor_az)
 gap = {s.pose_a: fov - abs(shift_to_angle(s.dx, image_w, fov)) for s in steps}
 out = [{"pose": p, "azimuth (°)": round(a, 2),
         "overlap with next (°)": round(gap[p], 1) if p in gap else None,
@@ -248,7 +299,7 @@ csv_path = cam_dir / "calibration.csv"
 if st.button(f"💾 Save {csv_path.name}", type="primary"):
     with csv_path.open("w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["pose", "az_center", "fov_deg", "image_w", "anchor_pose", "anchor_az"])
+        w.writerow(["pose", "az_center", "fov_deg", "image_w"])
         for p, a in az.items():
-            w.writerow([p, f"{a:.3f}", f"{fov:.3f}", image_w, anchor_pose, f"{anchor_az:.3f}"])
+            w.writerow([p, f"{a:.3f}", f"{fov:.3f}", image_w])
     st.success(f"Saved {csv_path}")
