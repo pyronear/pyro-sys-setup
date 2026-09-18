@@ -16,6 +16,11 @@ uv run streamlit run app.py
 
 Set the Pi IP in the sidebar.
 
+After a `git pull`, Streamlit reloads the pages on its own; `watchdog` (in the
+dependencies) makes it reload the modules they import as well. If a page ever
+shows a `TypeError` or `ImportError` about a name that exists in the code,
+restart the app.
+
 ## Page 0 — Pose capture
 
 **Go to a pose** — enter a pose ID, move there, capture one image to check the

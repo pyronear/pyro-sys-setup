@@ -8,4 +8,5 @@ dependencies = [
     "streamlit",
     "numpy>=2.2.6",
     "streamlit-image-coordinates>=0.4.1",
+    "watchdog>=6.0.0",
 ]
