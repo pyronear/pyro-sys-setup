@@ -1,0 +1,246 @@
+"""
+Page 2 — Pose selection.
+
+Pick the poses the camera will actually patrol, check the sector they cover on
+a map, push them as presets 0..N-1 and export them for pyro-engine.
+
+The FOV comes from `calibration.csv`, measured on that camera — the cones on
+the map are the real ones, not a datasheet drawing.
+"""
+
+import csv
+import itertools
+import json
+import math
+from pathlib import Path
+import sys
+import time
+
+import pydeck as pdk
+import streamlit as st
+from PIL import Image
+
+from pyro_camera_api_client.client import PyroCameraAPIClient
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from capture_poses import CAPTURES_DIR
+from pixel_shift import latest_per_pose
+from pose_azimuth import blind_gaps
+
+DEFAULT_RANGE_KM = 10.0
+THUMB_WIDTH = 180
+COLS_PER_ROW = 6
+# one colour per camera, as (r, g, b) for the map and hex for the headings
+CAM_COLORS = [((228, 26, 28), "#e41a1c"), ((55, 126, 184), "#377eb8"),
+              ((77, 175, 74), "#4daf4a"), ((152, 78, 163), "#984ea3"),
+              ((255, 127, 0), "#ff7f00"), ((166, 86, 40), "#a65628")]
+
+st.set_page_config(page_title="Pose selection", layout="wide")
+st.title("2 · Pose selection")
+
+pi_ip = st.session_state.get("pi_ip", "192.168.255.62")
+base = CAPTURES_DIR / pi_ip
+cam_dirs = sorted(d for d in base.glob("*") if (d / "calibration.csv").exists())
+if not cam_dirs:
+    st.error(f"No calibrated camera under `{base}` — run page 1 first.")
+    st.stop()
+
+
+def read_calibration(cam_dir: Path):
+    """(poses sorted by azimuth order, fov). calibration.csv is written by page 1."""
+    with (cam_dir / "calibration.csv").open() as f:
+        rows = [{"pose": int(r["pose"]), "az": float(r["az_center"]),
+                 "fov": float(r["fov_deg"])} for r in csv.DictReader(f)]
+    return rows, rows[0]["fov"] if rows else 0.0
+
+
+def cone(lat: float, lon: float, az: float, fov: float, range_m: float):
+    """Polygon ring for one pose's field of view, in [lon, lat] order."""
+    pts = [[lon, lat]]
+    for i in range(21):
+        bearing = math.radians(az - fov / 2 + i * fov / 20)
+        dlat = range_m * math.cos(bearing) / 111320
+        dlon = range_m * math.sin(bearing) / (111320 * math.cos(math.radians(lat)))
+        pts.append([lon + dlon, lat + dlat])
+    pts.append([lon, lat])
+    return pts
+
+
+@st.cache_data(show_spinner=False)
+def thumbnail(path: str) -> Image.Image:
+    """Every checkbox click reruns the page: decode each capture once."""
+    img = Image.open(path)
+    img.thumbnail((THUMB_WIDTH, THUMB_WIDTH))
+    return img
+
+
+# ── station position, shared by every camera on the Pi ────────────────────────
+saved_path = base / "selected_poses.json"
+saved = json.loads(saved_path.read_text()) if saved_path.exists() else {}
+
+first_saved = next(iter(saved.values()), {})
+latlon = st.text_input(
+    "Station lat, lon", placeholder="48.426801, 2.710724",
+    value=(f"{first_saved['lat']}, {first_saved['lon']}" if first_saved.get("lat") else ""))
+range_km = st.sidebar.number_input("Detection range on the map (km)",
+                                   value=DEFAULT_RANGE_KM, step=0.5)
+try:
+    station_lat, station_lon = (float(v) for v in latlon.split(","))
+except ValueError:
+    station_lat = station_lon = None
+    if latlon.strip():
+        st.warning("Expected `lat, lon` — e.g. `48.426801, 2.710724`")
+
+# ── one section per camera ────────────────────────────────────────────────────
+site_poses = []                       # (azimuth, fov) of every selected pose, all cameras
+for (rgb, hexcolor), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
+    cam_ip = cam_dir.name
+    rows, fov = read_calibration(cam_dir)
+    images = latest_per_pose(cam_dir / "images")
+
+    # the checkboxes are the selection: a keyed widget keeps its own state
+    # across reruns whatever `value=` says, so Apply/Clear write the keys
+    def chk(pose: int) -> str:
+        return f"chk_{cam_ip}_{pose}"
+
+    saved_poses = {int(p.split("_")[1]) for p in saved.get(cam_ip, {}).get("poses", {})}
+    for r in rows:
+        st.session_state.setdefault(chk(r["pose"]), r["pose"] in saved_poses)
+
+    # No st.rerun() here: the boxes below are instantiated after these buttons
+    # in the same run, so they pick the new values up — and a rerun from inside
+    # this loop would drop the state of the other cameras' boxes, not yet drawn
+    def set_all(keep):
+        for i, r in enumerate(rows):
+            st.session_state[chk(r["pose"])] = keep(i)
+
+    header = st.empty()
+
+    # one pose in N is the usual choice: consecutive poses overlap heavily
+    c1, c2, c3 = st.columns([1, 1, 4])
+    every = c1.number_input("Keep 1 pose every", 1, 10, 2, key=f"every_{cam_ip}")
+    if c2.button("Apply", key=f"apply_{cam_ip}", width="stretch"):
+        set_all(lambda i: i % int(every) == 0)
+    if c3.button("Clear", key=f"clear_{cam_ip}"):
+        set_all(lambda i: False)
+
+    selected = {r["pose"] for r in rows if st.session_state[chk(r["pose"])]}
+    st.session_state[f"sel_{cam_ip}"] = selected      # read by the map and the export
+    header.markdown(f"<span style='border-left:4px solid {hexcolor}; padding-left:8px'>"
+                    f"<b>{cam_ip}</b> — {len(selected)} of {len(rows)} poses, "
+                    f"FOV {fov:.1f}°</span>", unsafe_allow_html=True)
+
+    cols = st.columns(COLS_PER_ROW)
+    for i, row in enumerate(rows):
+        with cols[i % COLS_PER_ROW]:
+            path = images.get(row["pose"])
+            if path:
+                st.image(thumbnail(str(path)))
+            st.checkbox(f"{row['pose']} · {row['az']:.0f}°", key=chk(row["pose"]))
+
+    chosen = [r for r in rows if r["pose"] in selected]
+    site_poses += [(r["az"], fov) for r in chosen]
+    if chosen:
+        worst = max(blind_gaps([r["az"] for r in chosen], fov))
+        st.caption(f"This camera alone: {worst:.1f}° blind sector" if worst > 0
+                   else f"This camera alone covers the full circle, smallest overlap {-worst:.1f}°")
+
+        # ── push as presets 0..N-1 ────────────────────────────────────────────
+        mapping = ", ".join(f"{r['pose']}→{i}" for i, r in enumerate(chosen))
+        confirm = f"confirm_{cam_ip}"
+        clobbered = [r["pose"] for r in chosen if r["pose"] < len(chosen)]
+        if clobbered:
+            st.error(f"Pose(s) {clobbered} sit inside presets 0–{len(chosen) - 1}: "
+                     "they would be overwritten before the camera visits them. "
+                     "Capture the sweep from a higher start pose.")
+        else:
+            # no st.rerun() anywhere in this loop: it would drop the state of
+            # the other cameras' boxes, not yet drawn in this run
+            if st.button(f"Set presets on {cam_ip}", key=f"btn_{cam_ip}",
+                         disabled=bool(st.session_state.get(confirm))):
+                st.session_state[confirm] = True
+            box = st.empty()
+            if st.session_state.get(confirm):
+                with box.container():
+                    st.warning(f"This overwrites presets **0–{len(chosen) - 1}** on "
+                               f"`{cam_ip}`, whatever the patrol uses today.  \n{mapping}")
+                    ok, cancel = st.columns(2)
+                    go = ok.button("Confirm", key=f"ok_{cam_ip}", type="primary", width="stretch")
+                    if cancel.button("Cancel", key=f"no_{cam_ip}", width="stretch"):
+                        st.session_state[confirm] = False
+                        box.empty()
+                if go:
+                    with st.status(f"Setting presets on {cam_ip}…", expanded=True) as status:
+                        client = PyroCameraAPIClient(f"http://{pi_ip}:8081", timeout=60.0)
+                        try:
+                            client.stop_patrol(cam_ip)
+                            for new_idx, r in enumerate(chosen):
+                                st.write(f"pose {r['pose']} → preset {new_idx}")
+                                client.goto_preset(cam_ip, pose_id=r["pose"], speed=64)
+                                time.sleep(3)
+                                client.set_preset(cam_ip, idx=new_idx)
+                            status.update(label=f"{len(chosen)} presets set — restart "
+                                                "the patrol yourself.", state="complete")
+                        except Exception as e:
+                            status.update(label=f"Error: {e}", state="error")
+                    st.session_state[confirm] = False
+                    box.empty()
+    st.divider()
+
+# ── coverage of the whole site: the cameras share the mast, so a sector one
+# of them leaves open may be watched by another ───────────────────────────────
+st.subheader("Coverage")
+if site_poses:
+    worst = max(blind_gaps([a for a, _ in site_poses], [f for _, f in site_poses]))
+    if worst > 0:
+        st.error(f"**{worst:.1f}° blind sector** for the site with this selection — "
+                 "a fire can sit in it. Keep more poses on one of the cameras.")
+    else:
+        st.success(f"Full circle covered by the {len(cam_dirs)} camera(s) together, "
+                   f"smallest overlap {-worst:.1f}°.")
+if station_lat is None:
+    st.info("Enter the station lat, lon above to draw the cones.")
+else:
+    cones, markers = [], []
+    for (rgb, _), cam_dir in zip(itertools.cycle(CAM_COLORS), cam_dirs):
+        cam_ip = cam_dir.name
+        rows, fov = read_calibration(cam_dir)
+        markers.append({"pos": [station_lon, station_lat], "color": list(rgb),
+                        "label": cam_ip})
+        for r in rows:
+            if r["pose"] in st.session_state[f"sel_{cam_ip}"]:
+                cones.append({"polygon": cone(station_lat, station_lon, r["az"],
+                                              fov, range_km * 1000),
+                              "color": list(rgb),
+                              "label": f"{cam_ip} · pose {r['pose']} · {r['az']:.0f}°"})
+    st.pydeck_chart(pdk.Deck(
+        initial_view_state=pdk.ViewState(latitude=station_lat, longitude=station_lon,
+                                         zoom=10.5),
+        layers=[
+            pdk.Layer("PolygonLayer", cones, get_polygon="polygon",
+                      get_fill_color="[color[0], color[1], color[2], 40]",
+                      get_line_color="color", line_width_min_pixels=1, pickable=True),
+            pdk.Layer("ScatterplotLayer", markers, get_position="pos",
+                      get_fill_color="color", get_radius=120, pickable=True),
+        ],
+        tooltip={"text": "{label}"}))
+
+# ── export ────────────────────────────────────────────────────────────────────
+total = sum(len(st.session_state[f"sel_{d.name}"]) for d in cam_dirs)
+if st.button(f"💾 Export {total} pose(s) → selected_poses.json",
+             type="primary", disabled=total == 0 or station_lat is None):
+    out = {}
+    for cam_dir in cam_dirs:
+        cam_ip = cam_dir.name
+        rows, fov = read_calibration(cam_dir)
+        picked = st.session_state[f"sel_{cam_ip}"]
+        if not picked:
+            continue
+        out[cam_ip] = {
+            "lat": station_lat, "lon": station_lon, "fov": round(fov, 2),
+            # keys stay `pose_NN`: that is what the alert-API push script parses
+            "poses": {f"pose_{r['pose']}": round(r["az"], 2)
+                      for r in rows if r["pose"] in picked},
+        }
+    saved_path.write_text(json.dumps(out, indent=2))
+    st.success(f"Saved {saved_path}")
