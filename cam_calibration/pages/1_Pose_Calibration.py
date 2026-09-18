@@ -11,6 +11,7 @@ Works offline on a capture folder, no camera needed.
 """
 
 import csv
+from datetime import datetime
 import json
 from pathlib import Path
 import sys
@@ -23,7 +24,8 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import pose_azimuth
 from capture_poses import CAPTURES_DIR
-from pixel_shift import latest_per_pose, to_native
+from pixel_shift import POSE_RE, latest_per_pose, to_native
+from sun import find_sun, sun_position
 from pose_azimuth import (BAND, RESIDUAL_DEG, STILL_PX, Landmark, anchor_from_landmarks,
                           closure_shift, measure_steps, shift_to_angle, solve_fov,
                           suggest_band, suggest_loop_pose)
@@ -226,9 +228,52 @@ with a1:
         st.session_state[idx_key] = idx + 1
         st.rerun()
 lm_pose = pose_ids[idx]
-lm_az = a2.number_input("Landmark azimuth (°)", 0.0, 360.0, 180.0, 0.1)
+sun_mode = a2.checkbox("☀️ The landmark is the sun",
+                       help="Its azimuth comes from the station position and the capture "
+                            "time, no map needed. Pick a pose where the sun is in frame.")
+lm_az = a2.number_input("Landmark azimuth (°)", 0.0, 360.0, 180.0, 0.1, disabled=sun_mode)
 disp_w = a3.slider("Display width (px)", 400, 1600, 900, 50,
                    help="Display only — clicks are rescaled to native pixels.")
+
+img = Image.open(poses[lm_pose])
+click_key = f"click_{cam_dir.name}_{lm_pose}"
+gen_key = f"clickgen_{cam_dir.name}"           # bumped to reset the component after an add
+
+if sun_mode:
+    # station position: what page 2 saved, else typed once per session
+    saved = CAPTURES_DIR / pi_ip / "selected_poses.json"
+    first = next(iter(json.loads(saved.read_text()).values()), {}) if saved.exists() else {}
+    default_pos = f"{first['lat']}, {first['lon']}" if first.get("lat") else ""
+    s1, s2, s3 = st.columns([1, 1, 1])
+    latlon = s1.text_input("Station lat, lon", st.session_state.get("station_latlon", default_pos),
+                           placeholder="50.98348, 5.48977")
+    st.session_state["station_latlon"] = latlon
+    # capture time: the filename stamp, local time of the machine that captured
+    m = POSE_RE.search(poses[lm_pose].name)
+    default_t = (datetime.strptime(m.group(2), "%Y%m%d%H%M%S").strftime("%Y-%m-%d %H:%M:%S")
+                 if m and m.group(2) else "")
+    when = s2.text_input("Capture time (local)", default_t, placeholder="2026-09-18 08:47:42",
+                         help="Read from the file name. Local time of this computer.")
+    try:
+        lat, lon = (float(v) for v in latlon.split(","))
+        t = datetime.strptime(when, "%Y-%m-%d %H:%M:%S").astimezone()
+    except ValueError:
+        st.info("Enter the station position and the capture time to place the sun.")
+        st.stop()
+    lm_az, sun_alt = sun_position(lat, lon, t)
+    s3.metric("Sun azimuth", f"{lm_az:.2f}°",
+              help=f"altitude {sun_alt:.1f}°, {t.astimezone().strftime('%H:%M:%S %Z')}")
+    if sun_alt < 0:
+        st.warning("The sun is below the horizon at that time: check the capture time.")
+    if st.button("🔍 Find the sun", help="Proposes the centre of the largest saturated blob. "
+                 "Click the image to correct it."):
+        got = find_sun(img)
+        if got is None:
+            st.warning("No saturated blob in this image: click the sun yourself.")
+        else:
+            st.session_state[click_key] = (got[0], got[1])
+            st.session_state[gen_key] = st.session_state.get(gen_key, 0) + 1
+            st.rerun()
 
 
 def cross(draw, x, y, colour):
@@ -237,10 +282,7 @@ def cross(draw, x, y, colour):
     draw.ellipse([(x - 16, y - 16), (x + 16, y + 16)], outline=colour, width=2)
 
 
-click_key = f"click_{cam_dir.name}_{lm_pose}"
-gen_key = f"clickgen_{cam_dir.name}"           # bumped to reset the component after an add
 pending = st.session_state.get(click_key)
-img = Image.open(poses[lm_pose])
 shown = img.copy()
 draw = ImageDraw.Draw(shown)
 for lm in landmarks:

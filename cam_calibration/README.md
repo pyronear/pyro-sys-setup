@@ -85,7 +85,13 @@ is measured rather than assumed.
 
    The closing pose is picked as the one still correlating best with the first —
    strongest overlap. Neighbouring closing poses are fitted too and must agree.
-3. **Landmarks** — click a landmark of known azimuth (map, survey) and add it;
+3. **Landmarks** — arrow through the poses; on one where you know a landmark,
+   click it and type its azimuth (map, survey). On one where the sun is in
+   frame, tick **☀️ The landmark is the sun**: its azimuth comes from the
+   station position and the capture time (read from the file name), and
+   **Find the sun** proposes the centre of the brightest blob, which a click
+   corrects. The sun needs no map, so it is the reference to settle two map
+   landmarks that disagree. Add it;
    they are kept in `captures/<pi_ip>/<cam_ip>/landmarks.json`. One landmark
    fixes the absolute direction of the whole sweep. Two or three, far apart in
    azimuth, check each other: each one votes for the sweep offset, the median
