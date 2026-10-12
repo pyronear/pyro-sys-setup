@@ -122,3 +122,16 @@ fi
 
 ./harden_shelly.sh
 ./setup_shelly_watchdog.sh
+
+# Hardening only warns on failed calls; the outputs powering the Pi and the
+# router must really be on.
+echo "== Checking outputs =="
+for id in ${WATCHDOG_OUTPUTS:-0 1}; do
+  on=$(rpc "$SHELLY_IP" Switch.GetStatus "{\"id\":${id}}" | jget output)
+  init=$(rpc "$SHELLY_IP" Switch.GetConfig "{\"id\":${id}}" | jget initial_state)
+  if [ "$on" != "True" ] || [ "$init" != "on" ]; then
+    echo "Output ${id}: output=${on} initial_state=${init}, expected True/on"
+    exit 1
+  fi
+done
+echo "Shelly provisioned"

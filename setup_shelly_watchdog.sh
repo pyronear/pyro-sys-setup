@@ -96,3 +96,13 @@ echo
 echo "Script status"
 curl -s "http://${SHELLY_IP}/rpc/Script.GetStatus?id=${SCRIPT_ID}"
 echo
+
+echo "Checking ${SCRIPT_NAME} is enabled and running"
+curl -fsS "http://${SHELLY_IP}/rpc/Script.List" | python3 -c '
+import json
+import sys
+
+name = sys.argv[1]
+scripts = json.load(sys.stdin).get("scripts", [])
+sys.exit(0 if any(s.get("name") == name and s.get("enable") and s.get("running") for s in scripts) else 1)
+' "$SCRIPT_NAME" || { echo "Script ${SCRIPT_NAME} is not enabled and running"; exit 1; }
