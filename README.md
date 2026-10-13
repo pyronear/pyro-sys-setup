@@ -115,8 +115,8 @@ The scripts here set up the Shelly; none of them need the Shelly phone app.
 ### 1. Configuration
 
 Copy `shelly_config.env.example` to `shelly_config.env` (git-ignored) and fill
-in the site Wi-Fi (the RUT200 on stations), the Shelly static IP and the router
-address. `PYRO_ENGINE_DIR` must point to a pyro-engine checkout (default
+in the Shelly static IP and the router address. Leave the site Wi-Fi empty to
+read it from the RUT200 over SSH, with `ADMIN_PASSWORD` from `router/.env`. `PYRO_ENGINE_DIR` must point to a pyro-engine checkout (default
 `../pyro-engine`), where `watchdog.js` is read from.
 
 ### 2. Provision a factory-fresh Shelly
@@ -126,15 +126,15 @@ updates its firmware, disables what the watchdog does not need (cloud, MQTT,
 access point, Bluetooth...), switches outputs 0 and 1 on (also at every boot),
 then installs and starts `watchdog.js`.
 
-It reaches the fresh Shelly through `SETUP_IP`, in one of two ways:
+It finds the fresh Shelly by itself (leave `SETUP_IP` empty), in one of two
+ways. If several Shellys are on the network, set `SETUP_IP` to the right one
+(e.g. `shellypro4pm-<mac>.local`, MAC on the label).
 
-- **Ethernet (fastest):** plug the Shelly into the router with a cable, keep
-  your computer on the site Wi-Fi, and set `SETUP_IP` to the Shelly DHCP
-  address or to `shellypro4pm-<mac>.local` (MAC on the label). Unplug the cable
-  once the script is done.
-- **Shelly access point:** keep `SETUP_IP=192.168.33.1` and connect your
-  computer to the Shelly open Wi-Fi (named like `ShellyPro4PM-XXXXXXXXXXXX`).
-  When the script prints `reconnect it to ...`, switch your computer back to
+- **Ethernet (fastest):** plug the Shelly into the router with a cable and
+  keep your computer on the site Wi-Fi. Unplug the cable once the script is
+  done.
+- **Shelly access point:** connect your computer to the Shelly open Wi-Fi
+  (named like `ShellyPro4PM-XXXXXXXXXXXX`). When the script prints `reconnect it to ...`, switch your computer back to
   the site Wi-Fi; it waits up to 5 minutes for the Shelly.
 
 ```bash
@@ -142,7 +142,7 @@ bash provision_shelly.sh
 ```
 
 The script stops before changing anything else if the Shelly cannot join the
-Wi-Fi. If `SETUP_IP` is not reachable, the Wi-Fi step is skipped, so it can be
+Wi-Fi. If no fresh Shelly is found, the Wi-Fi step is skipped, so it can be
 re-run on an already connected Shelly.
 
 To reset a Shelly to factory settings, hold its button for 10 seconds.
