@@ -104,6 +104,58 @@ Once configuration requirements are fullfilled, from the root of this repository
 bash setup_rpi.sh
 ```
 
+## Shelly Setup
+
+A Shelly Pro powers the main Pi and the router, and runs a watchdog script that
+power-cycles them when the Pi stops answering. The watchdog itself
+(`watchdog.js`) and its behaviour are documented in
+[pyro-engine](https://github.com/pyronear/pyro-engine/tree/develop/watchdog/shelly/device).
+The scripts here set up the Shelly; none of them need the Shelly phone app.
+
+### 1. Configuration
+
+Copy `shelly_config.env.example` to `shelly_config.env` (git-ignored) and fill
+in the Shelly static IP and the router address. Leave the site Wi-Fi empty to
+read it from the RUT200 over SSH, with `ADMIN_PASSWORD` from `router/.env`. `PYRO_ENGINE_DIR` must point to a pyro-engine checkout (default
+`../pyro-engine`), where `watchdog.js` is read from.
+
+### 2. Provision a factory-fresh Shelly
+
+`provision_shelly.sh` joins the Shelly to the site Wi-Fi with a static IP,
+updates its firmware, disables what the watchdog does not need (cloud, MQTT,
+access point, Bluetooth...), switches outputs 0 and 1 on (also at every boot),
+then installs and starts `watchdog.js`.
+
+It finds the fresh Shelly by itself (leave `SETUP_IP` empty), in one of two
+ways. If several Shellys are on the network, set `SETUP_IP` to the right one
+(e.g. `shellypro4pm-<mac>.local`, MAC on the label).
+
+- **Ethernet (fastest):** plug the Shelly into the router with a cable and
+  keep your computer on the site Wi-Fi. Unplug the cable once the script is
+  done.
+- **Shelly access point:** connect your computer to the Shelly open Wi-Fi
+  (named like `ShellyPro4PM-XXXXXXXXXXXX`). When the script prints `reconnect it to ...`, switch your computer back to
+  the site Wi-Fi; it waits up to 5 minutes for the Shelly.
+
+```bash
+bash provision_shelly.sh
+```
+
+The script stops before changing anything else if the Shelly cannot join the
+Wi-Fi. If no fresh Shelly is found, the Wi-Fi step is skipped, so it can be
+re-run on an already connected Shelly.
+
+To reset a Shelly to factory settings, hold its button for 10 seconds.
+
+### 3. Update the watchdog script
+
+After changing `watchdog.js` in pyro-engine, upload it again to an installed
+Shelly:
+
+```bash
+bash setup_shelly_watchdog.sh
+```
+
 ## Contributing
 
 Please refer to [`CONTRIBUTING`](CONTRIBUTING.md) if you wish to contribute to this project.

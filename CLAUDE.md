@@ -34,6 +34,7 @@ yamllint .
 - **`.env`**: Camera credentials (`CAM_USER`, `CAM_PWD`)
 - **`cameras_config.json`**: List of cameras with their current IPs, type (`static` or `ptz`), and target `LocalLink` static IP settings
 - **`rpi_config.env`**: All paths and credentials needed by `setup_rpi.sh`: SSH key directory, OpenVPN config path, pyro-engine `.env`/`credentials.json` paths, WiFi credentials, network interface settings
+- **`shelly_config.env`**: Site settings for the Shelly scripts (`provision_shelly.sh`, `harden_shelly.sh`, `setup_shelly_watchdog.sh`): site Wi-Fi, Shelly static IP, router, setup address, path to the pyro-engine checkout holding `watchdog.js`
 
 ## Architecture
 
