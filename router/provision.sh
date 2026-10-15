@@ -12,12 +12,13 @@
 # Tasks: admin password, SIM PIN, and firewall rules that keep the cameras
 # reachable on the LAN while denying them any route to the Internet.
 
-set -euo pipefail
+set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 
 DO_INSPECT=0
+DO_CAMERAS_ONLY=0
 DO_REBOOT=auto
 DRY_RUN=0
 
@@ -36,6 +37,9 @@ ok()   { printf '%s✓%s %s\n' "$C_GRN" "$C_RST" "$*"; }
 warn() { printf '%s⚠ %s%s\n' "$C_YEL" "$*" "$C_RST" >&2; }
 die()  { printf '%s✗ %s%s\n' "$C_RED" "$*" "$C_RST" >&2; exit 1; }
 
+# set -e exits without a word; at least say where it happened.
+trap 'printf "%s✗ unexpected failure at line %s of provision.sh%s\n" "$C_RED" "$LINENO" "$C_RST" >&2' ERR
+
 # Shell-quote a value so it can be embedded in the remote script safely.
 shq() { printf "'%s'" "$(printf '%s' "${1-}" | sed "s/'/'\\\\''/g")"; }
 
@@ -46,6 +50,10 @@ Usage: ./router/provision.sh [options]
   --inspect       Read-only. Connect and dump firmware, SIM state, the uci
                   paths this firmware uses for the PIN, and existing firewall
                   rules. Changes nothing. Run this first on a fresh router.
+  --cameras-only  Only (re)create the camera block rules; leave the admin
+                  password and SIM PIN alone. For a router provisioned
+                  earlier without its cameras: run this on site once they
+                  are connected. Needs CAMERA_IPS.
   --dry-run       Show the remote script that would run, without running it.
   --no-reboot     Never reboot, even if the SIM PIN changed.
   --reboot        Always reboot at the end.
@@ -57,6 +65,7 @@ EOF
 while [ $# -gt 0 ]; do
     case "$1" in
         --inspect)   DO_INSPECT=1 ;;
+        --cameras-only) DO_CAMERAS_ONLY=1 ;;
         --dry-run)   DRY_RUN=1 ;;
         --no-reboot) DO_REBOOT=never ;;
         --reboot)    DO_REBOOT=always ;;
@@ -107,6 +116,12 @@ if [ -n "$CAMERA_IPS" ]; then
         CAM_LIST="$CAM_LIST $ip"
     done
     CAM_LIST="${CAM_LIST# }"
+fi
+
+if [ "$DO_CAMERAS_ONLY" = 1 ]; then
+    [ -n "$CAM_LIST" ] || die "--cameras-only needs CAMERA_IPS to be set in $ENV_FILE"
+    # An empty PIN makes both the apply and verify steps skip the SIM.
+    SIM_PIN=""
 fi
 
 # === SSH plumbing ===========================================================
@@ -254,22 +269,55 @@ remote_apply() {
 NEW_PW=$(shq "$ADMIN_PASSWORD")
 SIM_PIN=$(shq "$SIM_PIN")
 CAM_LIST=$(shq "$CAM_LIST")
+CAMERAS_ONLY=$(shq "$DO_CAMERAS_ONLY")
 PRELUDE
 
     cat <<'BODY'
 set -u
 PIN_CHANGED=0
 
+# --- camera MAC addresses (resolved before anything is changed) -------------
+# The block rules match by MAC so they cover IPv4 and IPv6 alike. The router
+# learns each MAC over ARP, so every camera must be up on the LAN right now.
+CAM_RULES=""
+if [ -n "$CAM_LIST" ]; then
+    echo "> resolving camera MAC addresses"
+    MISSING=""
+    for ip in $CAM_LIST; do
+        ping -c 1 -W 2 "$ip" >/dev/null 2>&1 || true
+        mac=$(ip neigh show "$ip" 2>/dev/null | sed -n 's/.*lladdr \([0-9a-fA-F:]*\).*/\1/p' | head -1)
+        [ -n "$mac" ] || mac=$(awk -v ip="$ip" '$1 == ip && $4 != "00:00:00:00:00:00" { print $4 }' /proc/net/arp 2>/dev/null | head -1)
+        mac=$(printf '%s' "$mac" | tr 'A-F' 'a-f')
+        if printf '%s' "$mac" | grep -qE '^([0-9a-f]{2}:){5}[0-9a-f]{2}$'; then
+            echo "  $ip -> $mac"
+            CAM_RULES="$CAM_RULES $ip=$mac"
+        else
+            echo "  $ip -> NO MAC FOUND"
+            MISSING="$MISSING $ip"
+        fi
+    done
+    if [ -n "$MISSING" ]; then
+        echo ""
+        echo "  ERROR: no MAC address found for:$MISSING"
+        echo "  The router finds a camera's MAC by reaching it on the LAN. Check that each"
+        echo "  camera is powered on, cabled to the router's LAN, and already set to the IP"
+        echo "  listed in CAMERA_IPS. Nothing has been changed on the router."
+        exit 21
+    fi
+fi
+
 # --- admin password ---------------------------------------------------------
-echo "> setting admin password"
-if command -v chpasswd >/dev/null 2>&1 &&
-   printf 'root:%s\n' "$NEW_PW" | chpasswd >/dev/null 2>&1; then
-    echo "  password set (chpasswd)"
-elif printf '%s\n%s\n' "$NEW_PW" "$NEW_PW" | passwd root >/dev/null 2>&1; then
-    echo "  password set (passwd)"
-else
-    echo "  FAILED to set the admin password"
-    exit 20
+if [ "$CAMERAS_ONLY" != 1 ]; then
+    echo "> setting admin password"
+    if command -v chpasswd >/dev/null 2>&1 &&
+       printf 'root:%s\n' "$NEW_PW" | chpasswd >/dev/null 2>&1; then
+        echo "  password set (chpasswd)"
+    elif printf '%s\n%s\n' "$NEW_PW" "$NEW_PW" | passwd root >/dev/null 2>&1; then
+        echo "  password set (passwd)"
+    else
+        echo "  FAILED to set the admin password"
+        exit 20
+    fi
 fi
 
 # --- SIM PIN ----------------------------------------------------------------
@@ -304,7 +352,9 @@ if [ -n "$SIM_PIN" ]; then
         done
     fi
 
-    # Can the PIN be verified? Only if a SIM is actually in the slot.
+    # The modem only tries the PIN at boot, so the state read here predates a
+    # PIN that was just written. It decides whether to reboot; the PIN itself
+    # is checked after the reboot (remote_verify).
     SIM_STATE=UNKNOWN
     PIN_TRIES=""
     if command -v gsmctl >/dev/null 2>&1; then
@@ -322,19 +372,31 @@ if [ -n "$SIM_PIN" ]; then
     echo "  SIM state: $SIM_STATE"
     [ -n "$PIN_TRIES" ] && echo "  PIN attempts remaining: $PIN_TRIES"
 
+    REBOOT_FOR_PIN=0
     case "$SIM_STATE" in
         READY)
-            echo "  PIN accepted, SIM unlocked." ;;
+            echo "  SIM unlocked."
+            # A changed PIN is only tried at the next boot: do it now, while
+            # someone is watching.
+            [ "$PIN_CHANGED" = 1 ] && REBOOT_FOR_PIN=1 ;;
         PIN_REQUIRED)
-            echo "::WARN::SIM is inserted but still locked: the PIN was REJECTED. ${PIN_TRIES:+Only $PIN_TRIES attempt(s) remain before the SIM is PUK-locked. }Fix SIM_PIN in router/.env before rebooting the router again." ;;
+            if [ -n "$PIN_TRIES" ] && [ "$PIN_TRIES" -le 1 ]; then
+                echo "::WARN::SIM is locked with only $PIN_TRIES PIN attempt left, so the router will NOT be rebooted automatically. Double-check SIM_PIN in router/.env, then re-run with --reboot."
+            elif [ "$PIN_CHANGED" = 1 ] || [ "$PIN_TRIES" = 3 ]; then
+                echo "  SIM locked, waiting for the PIN: it is checked after the reboot."
+                REBOOT_FOR_PIN=1
+            else
+                echo "::WARN::SIM is still locked although this PIN was already stored: the modem REJECTED it at the last boot. ${PIN_TRIES:+Only $PIN_TRIES attempt(s) remain before the SIM is PUK-locked. }Fix SIM_PIN in router/.env before the router reboots again."
+            fi ;;
         PUK_LOCKED)
             echo "::WARN::SIM is PUK-LOCKED. The PIN has already been retried too many times. Unlock it with the PUK from your operator before continuing." ;;
         ABSENT)
             echo "::WARN::No SIM detected. The PIN is stored but UNVERIFIED and will be applied on the next boot with a SIM present. If it is wrong, 3 boots will PUK-lock the SIM." ;;
         UNKNOWN)
-            echo "::WARN::Could not read the SIM state, so the PIN could not be verified." ;;
+            echo "::WARN::Could not read the SIM state, so the PIN could not be verified."
+            [ "$PIN_CHANGED" = 1 ] && REBOOT_FOR_PIN=1 ;;
     esac
-    echo "::SIM_STATE::$SIM_STATE"
+    echo "::REBOOT_FOR_PIN::$REBOOT_FOR_PIN"
 fi
 
 # --- firewall: cameras reachable on LAN, no route to the Internet -----------
@@ -351,18 +413,21 @@ if [ -n "$CAM_LIST" ]; then
     done
 
     i=0
-    for ip in $CAM_LIST; do
+    for pair in $CAM_RULES; do
+        ip=${pair%%=*}; mac=${pair#*=}
         i=$((i + 1))
         uci set "firewall.cam_block_$i=rule"
-        uci set "firewall.cam_block_$i.name=cam-no-internet-$i"
+        uci set "firewall.cam_block_$i.name=cam-no-internet-$ip"
         uci set "firewall.cam_block_$i.src=lan"
         uci set "firewall.cam_block_$i.dest=wan"
-        uci set "firewall.cam_block_$i.src_ip=$ip"
+        # No src_ip: it would make fw3 infer IPv4 only and leave IPv6 open.
+        uci set "firewall.cam_block_$i.src_mac=$mac"
+        uci set "firewall.cam_block_$i.family=any"
         uci set "firewall.cam_block_$i.proto=all"
         # REJECT rather than DROP so the camera fails fast instead of hanging.
         uci set "firewall.cam_block_$i.target=REJECT"
         uci set "firewall.cam_block_$i.enabled=1"
-        echo "  $ip -> wan REJECT"
+        echo "  $ip ($mac) -> wan REJECT, IPv4 + IPv6"
     done
     echo "  $i rule(s); LAN-to-LAN traffic is untouched (these match forwarded traffic only)"
 fi
@@ -395,6 +460,8 @@ remote_verify() {
     cat <<PRELUDE
 SIM_PIN=$(shq "$SIM_PIN")
 CAM_LIST=$(shq "$CAM_LIST")
+REBOOTED=$(shq "$NEED_REBOOT")
+PIN_PENDING=$(shq "$PIN_PENDING")
 PRELUDE
 
     cat <<'BODY'
@@ -408,16 +475,28 @@ if [ -n "$SIM_PIN" ]; then
     echo "> SIM"
     uci show 2>/dev/null | grep -q '\.pincode=' && echo "  PIN stored in uci" || { echo "  PIN NOT stored"; FAIL=1; }
     if command -v gsmctl >/dev/null 2>&1; then
-        cpin=$(gsmctl -A 'AT+CPIN?' 2>/dev/null | tr -d '\r')
+        # Right after a boot the modem reports a locked SIM until it has tried
+        # the stored PIN, so give it up to a minute to settle.
+        polls=1; [ "$REBOOTED" = 1 ] && polls=12
+        while :; do
+            cpin=$(gsmctl -A 'AT+CPIN?' 2>/dev/null | tr -d '\r')
+            case "$cpin" in *READY*|*"SIM PUK"*) break ;; esac
+            polls=$((polls - 1)); [ "$polls" -gt 0 ] || break
+            sleep 5
+        done
         case "$cpin" in
             *READY*)     echo "  SIM unlocked (CPIN: READY)" ;;
             *"SIM PUK"*) echo "  SIM is PUK-LOCKED — too many wrong PIN attempts."; FAIL=1 ;;
             *"SIM PIN"*)
-                tries=$(gsmctl -A 'AT+CPINC?' 2>/dev/null | tr -d '\r' |
-                        sed -n 's/.*+CPINC: *\([0-9]*\).*/\1/p' | head -1)
-                echo "  SIM still locked — the stored PIN was REJECTED${tries:+ ($tries attempt(s) left before PUK lock)}"
-                echo "  Fix SIM_PIN in router/.env before the router reboots again."
-                FAIL=1 ;;
+                if [ "$PIN_PENDING" = 1 ]; then
+                    echo "  SIM locked: the PIN has not been tried yet (no reboot). Re-run with --reboot to check it."
+                else
+                    tries=$(gsmctl -A 'AT+CPINC?' 2>/dev/null | tr -d '\r' |
+                            sed -n 's/.*+CPINC: *\([0-9]*\).*/\1/p' | head -1)
+                    echo "  SIM still locked — the stored PIN was REJECTED${tries:+ ($tries attempt(s) left before PUK lock)}"
+                    echo "  Fix SIM_PIN in router/.env before the router reboots again."
+                    FAIL=1
+                fi ;;
             *)           echo "  SIM state not readable (no SIM inserted?) — PIN unverified" ;;
         esac
     fi
@@ -426,13 +505,30 @@ fi
 if [ -n "$CAM_LIST" ]; then
     echo "> firewall"
     n=$(uci show firewall 2>/dev/null | grep -c "^firewall\.cam_block_[0-9]*=rule" || true)
-    echo "  $n camera rule(s) in config"
-    for ip in $CAM_LIST; do
-        if { command -v nft >/dev/null 2>&1 && nft list ruleset 2>/dev/null | grep -q "$ip"; } ||
-           { command -v iptables >/dev/null 2>&1 && iptables -S 2>/dev/null | grep -q "$ip"; }; then
-            echo "  $ip present in the live ruleset"
+    want=0; for ip in $CAM_LIST; do want=$((want + 1)); done
+    echo "  $n camera rule(s) in config, $want expected"
+    [ "$n" -eq "$want" ] || FAIL=1
+    for s in $(uci show firewall 2>/dev/null | grep -o '^firewall\.cam_block_[0-9]*' | sort -u); do
+        ip=$(uci -q get "$s.name" 2>/dev/null); ip=${ip#cam-no-internet-}
+        mac=$(uci -q get "$s.src_mac" 2>/dev/null)
+        [ -n "$mac" ] || { echo "  $s has no src_mac"; FAIL=1; continue; }
+        # The rule must be live for both families; iptables prints MACs in
+        # upper case, hence grep -i.
+        v4=no; v6=no
+        if command -v iptables >/dev/null 2>&1; then
+            iptables -S 2>/dev/null | grep -qi "$mac" && v4=yes
+            if command -v ip6tables >/dev/null 2>&1; then
+                ip6tables -S 2>/dev/null | grep -qi "$mac" && v6=yes
+            else
+                v6=n/a
+            fi
+        elif command -v nft >/dev/null 2>&1; then
+            nft list ruleset 2>/dev/null | grep -qi "$mac" && { v4=yes; v6=yes; }
+        fi
+        if [ "$v4" = yes ] && [ "$v6" != no ]; then
+            echo "  $ip ($mac) blocked in the live ruleset (IPv4: $v4, IPv6: $v6)"
         else
-            echo "  $ip NOT found in the live ruleset"; FAIL=1
+            echo "  $ip ($mac) NOT fully blocked in the live ruleset (IPv4: $v4, IPv6: $v6)"; FAIL=1
         fi
     done
 fi
@@ -483,6 +579,13 @@ if [ "$DRY_RUN" = 0 ]; then
     connect
 fi
 
+# connect tries ADMIN_PASSWORD first, so landing on another password means the
+# router was never provisioned: --cameras-only would leave the factory one.
+if [ "$DO_CAMERAS_ONLY" = 1 ] && [ "$AUTH_MODE" = password ] && [ "$AUTH_PW" != "$ADMIN_PASSWORD" ]; then
+    die "This router still has its factory password. Run ./router/provision.sh
+  without --cameras-only first."
+fi
+
 if [ "$DO_INSPECT" = 1 ]; then
     step "Inspecting $ROUTER_IP (read-only)"
     remote_inspect | run_remote
@@ -491,10 +594,14 @@ if [ "$DO_INSPECT" = 1 ]; then
 fi
 
 step "Provisioning $ROUTER_IP"
-info "  admin password : will be set"
-if [ -n "$SIM_PIN" ]; then
+if [ "$DO_CAMERAS_ONLY" = 1 ]; then
+    info "  admin password : unchanged (--cameras-only)"
+    info "  SIM PIN        : unchanged (--cameras-only)"
+elif [ -n "$SIM_PIN" ]; then
+    info "  admin password : will be set"
     info "  SIM PIN        : set (value hidden)"
 else
+    info "  admin password : will be set"
     info "  SIM PIN        : not configured"
 fi
 info "  cameras blocked: ${CAM_LIST:-none}"
@@ -502,13 +609,20 @@ info "  cameras blocked: ${CAM_LIST:-none}"
 APPLY_LOG="$(mktemp)"
 trap 'rm -f "$APPLY_LOG"' EXIT
 
-if ! remote_apply | run_remote | tee "$APPLY_LOG" | sed '/^::[A-Z_]*::/d'; then
-    die "Provisioning failed. The router may be partially configured; re-run to continue."
-fi
+# With pipefail, rc is the remote script's exit code (tee and sed succeed).
+rc=0
+remote_apply | run_remote | tee "$APPLY_LOG" | sed '/^::[A-Z_]*::/d' || rc=$?
+case "$rc" in
+    0)  ;;
+    21) die "Camera MAC lookup failed (see above). Nothing was changed on the router." ;;
+    *)  die "Provisioning failed. The router may be partially configured; re-run to continue." ;;
+esac
 
 if [ "$DRY_RUN" = 1 ]; then exit 0; fi
 
-grep '^::WARN::' "$APPLY_LOG" | sed 's/^::WARN:://' | while IFS= read -r line; do
+# sed, not grep: grep exits 1 when there is no warning, which pipefail turns
+# into a silent exit.
+sed -n 's/^::WARN:://p' "$APPLY_LOG" | while IFS= read -r line; do
     warn "$line"
 done
 
@@ -519,21 +633,27 @@ if [ "$AUTH_MODE" = password ]; then
     AUTH_PW="$ADMIN_PASSWORD"
 fi
 
-PIN_CHANGED="$(grep '^::PIN_CHANGED::' "$APPLY_LOG" | tail -1 | cut -d: -f5 || true)"
-SIM_STATE="$(grep '^::SIM_STATE::' "$APPLY_LOG" | tail -1 | cut -d: -f5 || true)"
+PIN_CHANGED="$(sed -n 's/^::PIN_CHANGED:://p' "$APPLY_LOG" | tail -1)"
+REBOOT_FOR_PIN="$(sed -n 's/^::REBOOT_FOR_PIN:://p' "$APPLY_LOG" | tail -1)"
 NEED_REBOOT=0
 case "$DO_REBOOT" in
     always) NEED_REBOOT=1 ;;
     never)  NEED_REBOOT=0 ;;
     auto)
-        # Only worth rebooting to make the modem re-read a PIN that changed,
-        # and only if there is a SIM in the slot for it to unlock.
-        if [ "${PIN_CHANGED:-0}" = 1 ] && [ "${SIM_STATE:-ABSENT}" != ABSENT ]; then
+        # The remote side decided: reboot only when the modem has a PIN to try
+        # and enough attempts left to try it safely.
+        if [ "${REBOOT_FOR_PIN:-0}" = 1 ]; then
             NEED_REBOOT=1
         elif [ "${PIN_CHANGED:-0}" = 1 ]; then
-            info "PIN stored; skipping reboot since no SIM is inserted."
+            info "PIN stored but not rebooting (see above); it is tried at the next boot."
         fi ;;
 esac
+
+# Without a reboot, a PIN waiting to be tried is not a rejected one.
+PIN_PENDING=0
+if [ "$NEED_REBOOT" = 0 ] && { [ "${PIN_CHANGED:-0}" = 1 ] || [ "${REBOOT_FOR_PIN:-0}" = 1 ]; }; then
+    PIN_PENDING=1
+fi
 
 if [ "$NEED_REBOOT" = 1 ]; then
     step "Rebooting (the modem must re-read the SIM PIN)"
