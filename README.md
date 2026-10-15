@@ -104,6 +104,28 @@ Once configuration requirements are fullfilled, from the root of this repository
 bash setup_rpi.sh
 ```
 
+## Router Setup
+
+Plug your laptop into a **LAN** port of the Teltonika RUT router (not the WAN port), then:
+
+```bash
+cp router/.env.example router/.env
+vim router/.env
+./router/provision.sh
+```
+
+This sets the admin password, configures the SIM PIN, and blocks Internet access (IPv4 and IPv6) for the cameras while keeping them reachable on the local network. The cameras must be powered on and connected to the router for their rules to be created.
+
+To prepare a router before its cameras are available, leave `CAMERA_IPS` empty. Once on site with the cameras connected, fill it in and run:
+
+```bash
+./router/provision.sh --cameras-only
+```
+
+This only creates the camera rules and leaves the password and SIM PIN untouched.
+
+*Run `./router/provision.sh --inspect` first for a read-only report of the router's firmware, SIM state and firewall zones. Password login needs `sshpass` (`brew install hudochenkov/sshpass/sshpass`).*
+
 ## Contributing
 
 Please refer to [`CONTRIBUTING`](CONTRIBUTING.md) if you wish to contribute to this project.
